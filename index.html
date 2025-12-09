@@ -147,10 +147,10 @@
         <div id="tariff-guide-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
             <div class="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full">
                 <h3 class="text-xl font-bold text-blue-600 mb-3">Formato de Archivo CSV Requerido</h3>
-                <p class="text-gray-700 mb-4 text-sm">Para que la carga funcione, su archivo CSV (exportado desde Excel) debe tener exactamente las siguientes **6 cabeceras** en la primera fila:</p>
+                <p class="text-gray-700 mb-4 text-sm">Para que la carga funcione, su archivo CSV (exportado desde Excel) debe tener exactamente las siguientes **7 cabeceras** en la primera fila:</p>
                 
                 <div class="bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm font-mono mb-4">
-                    <span class="font-bold text-gray-800">name, description, p1_price, p2_price, p3_price, fixed_fee</span>
+                    <span class="font-bold text-gray-800">name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2</span>
                 </div>
 
                 <p class="text-sm text-gray-700 mb-3">**Explicación de las columnas:**</p>
@@ -160,7 +160,8 @@
                     <li>`p1_price`: Precio de la energía en periodo Punta (€/kWh). **(Número)**</li>
                     <li>`p2_price`: Precio de la energía en periodo Llano (€/kWh). **(Número)**</li>
                     <li>`p3_price`: Precio de la energía en periodo Valle (€/kWh). **(Número)**</li>
-                    <li>`fixed_fee`: Cuota fija de Potencia/mes (€/mes). **(Número)**</li>
+                    <li>`p_potencia_1`: Precio de la potencia P1 (para periodos Punta/Llano, en €/kW/año). **(Número)**</li>
+                    <li>`p_potencia_2`: Precio de la potencia P2 (para periodo Valle, en €/kW/año). **(Número)**</li>
                 </ul>
 
                 <p class="text-sm text-red-500 mt-4">Asegúrese de que los precios usen el **punto** como separador decimal (ej: `0.125`).</p>
@@ -184,7 +185,8 @@
                 p1_price: 0.15,
                 p2_price: 0.10,
                 p3_price: 0.05,
-                fixed_fee: 40.0,
+                p_potencia_1: 40.0, // €/kW/año
+                p_potencia_2: 20.0, // €/kW/año
                 cups_match: ["2.0TD"],
             },
             {
@@ -193,7 +195,8 @@
                 p1_price: 0.20,
                 p2_price: 0.12,
                 p3_price: 0.02,
-                fixed_fee: 45.0,
+                p_potencia_1: 45.0,
+                p_potencia_2: 22.0,
                 cups_match: ["2.0TD"],
             },
             {
@@ -202,7 +205,8 @@
                 p1_price: 0.12,
                 p2_price: 0.12,
                 p3_price: 0.12,
-                fixed_fee: 35.0,
+                p_potencia_1: 38.0,
+                p_potencia_2: 19.0,
                 cups_match: ["2.0TD"],
             },
             {
@@ -211,7 +215,8 @@
                 p1_price: 0.18,
                 p2_price: 0.14,
                 p3_price: 0.01,
-                fixed_fee: 42.0,
+                p_potencia_1: 42.0,
+                p_potencia_2: 21.0,
                 cups_match: ["2.0TD"],
             },
         ];
@@ -290,11 +295,12 @@
             if (lines.length < 2) return []; // Necesita cabecera y al menos una fila de datos
 
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-            const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'fixed_fee'];
+            // Se actualizan las cabeceras requeridas para incluir p_potencia_1 y p_potencia_2
+            const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'p_potencia_1', 'p_potencia_2'];
             
             // Validación básica de cabeceras
             if (!requiredHeaders.every(h => headers.includes(h))) {
-                throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, fixed_fee.");
+                throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2.");
             }
 
             const newTariffs = [];
@@ -309,7 +315,7 @@
                     const header = headers[j];
                     const value = values[j].trim();
                     
-                    if (header.includes('price') || header.includes('fixed_fee')) {
+                    if (header.includes('price') || header.includes('potencia')) { // Incluye potencia ahora
                         // Intentar convertir a número (usando punto decimal)
                         const numValue = parseFloat(value.replace(',', '.'));
                         if (isNaN(numValue)) {
@@ -455,13 +461,19 @@
             document.getElementById('cups-value').textContent = cups;
             
             // --- PARÁMETROS DE SIMULACIÓN DE CONSUMO TÍPICO 2.0 TD ---
-            // Estos son solo para demostrar la lógica de comparación.
+            // Asumimos un perfil estándar 2.0TD (3 períodos de energía)
             const annualConsumption = 3000; // kWh/año
             const consumptionProfile = { 
-                p1: 0.40, // 40% Punta
-                p2: 0.30, // 30% Llano
-                p3: 0.30, // 30% Valle
+                p1: 0.40, // 40% Punta (Energía)
+                p2: 0.30, // 30% Llano (Energía)
+                p3: 0.30, // 30% Valle (Energía)
             };
+            
+            // Asumimos una potencia contratada estándar para la simulación de Coste Fijo
+            // *NOTA: La potencia contratada P1 aplica a P1 y P2 de energía. P2 de potencia aplica a P3 de energía.
+            const contractedPowerP1 = 4.6; // kW (Potencia Punta/Llano)
+            const contractedPowerP2 = 4.6; // kW (Potencia Valle)
+
 
             const consumptionP1 = annualConsumption * consumptionProfile.p1;
             const consumptionP2 = annualConsumption * consumptionProfile.p2;
@@ -482,8 +494,11 @@
                                        (consumptionP2 * tariff.p2_price) + 
                                        (consumptionP3 * tariff.p3_price);
                     
-                    // 3. Cálculo de coste fijo (potencia + cuotas)
-                    const costFixed = tariff.fixed_fee * 12; // Cuota fija anual
+                    // 3. Cálculo de coste fijo (potencia)
+                    // (Potencia P1 contratada * Precio P1/kW/año) + (Potencia P2 contratada * Precio P2/kW/año)
+                    // Asumimos que los precios de potencia están en €/kW/año
+                    const costFixed = (contractedPowerP1 * tariff.p_potencia_1) + 
+                                      (contractedPowerP2 * tariff.p_potencia_2);
                     
                     const totalAnnualCost = costEnergy + costFixed;
                     
@@ -499,7 +514,10 @@
                     const detailHtml = `
                         <div class="p-3 border rounded-lg shadow-sm ${tariff === bestOffer ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
                             <p class="font-bold ${tariff === bestOffer ? 'text-green-700' : 'text-gray-700'}">${tariff.name}</p>
-                            <p class="text-xs text-gray-500">P1: ${tariff.p1_price.toFixed(3)} €/kWh | P3: ${tariff.p3_price.toFixed(3)} €/kWh | Cuota Fija: ${tariff.fixed_fee.toFixed(2)} €/mes</p>
+                            <p class="text-xs text-gray-500">
+                                ENERGÍA (P1/P3): ${tariff.p1_price.toFixed(3)} / ${tariff.p3_price.toFixed(3)} €/kWh | 
+                                POTENCIA (P1/P2): ${tariff.p_potencia_1.toFixed(2)} / ${tariff.p_potencia_2.toFixed(2)} €/kW/año
+                            </p>
                             <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est.)</p>
                         </div>
                     `;
