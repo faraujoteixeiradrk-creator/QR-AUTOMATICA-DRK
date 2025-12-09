@@ -3,409 +3,427 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DRK: Comparador de Tarifas 2.0 TD (QR CNMC)</title>
-    <!-- Carga de Tailwind CSS para estilos -->
+    <title>DRK: Comparador de Tarifas 2.0 TD</title>
+    <!-- Carga de Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de colores personalizados basados en tu logo -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        drk: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9', /* Cian vibrante */
+                            600: '#0284c7',
+                            800: '#075985',
+                            900: '#0c4a6e', /* Azul profundo corporativo */
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* Configuración de fuente y estilos base */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f7f9fc;
-        }
-        /* Estilos específicos para la cámara/lector QR */
-        #interactive.viewport {
-            width: 100%;
-            height: auto;
-            max-width: 400px;
-            margin: 0 auto;
-            position: relative;
-        }
-        /* El video se muestra en el viewport, el canvas se mantiene para el procesamiento */
-        #interactive.viewport > video {
-            width: 100%;
-            height: 100%;
-            display: block;
-            border-radius: 0.75rem; /* rounded-xl */
-        }
-        .loading-ring {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .breakdown-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            font-size: 0.875rem; /* text-sm */
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        #interactive.viewport { position: relative; width: 100%; height: auto; overflow: hidden; border-radius: 1rem; }
+        #interactive.viewport > video { width: 100%; height: 100%; object-fit: cover; }
+        .loading-ring { border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #0ea5e9; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
-    <!-- jsQR (estable y sin problemas de Web Workers) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
-<body class="p-4 flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen text-slate-800">
 
-    <div id="app" class="w-full max-w-lg mx-auto bg-white p-6 md:p-8 rounded-xl shadow-2xl">
-        <header class="text-center mb-6">
-            <h1 class="text-3xl font-extrabold text-blue-600">DRK Comparador Inteligente</h1>
-            <p class="text-gray-500 mt-1 text-sm">Escanea tu QR CNMC y encuentra la mejor oferta 2.0 TD.</p>
-        </header>
-
-        <!-- Sección de Instrucciones y Botón de Inicio (Vista 1) -->
-        <div id="initial-view">
-            
-            <!-- Bloque de Carga de Tarifas (CSV) -->
-            <div class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 rounded-lg shadow-sm" role="alert">
-                <p class="font-bold">Carga de Tarifas DRK</p>
-                <p class="text-sm">Actualmente hay <span id="tariff-count" class="font-bold">0 tarifas</span> cargadas.
-                    Use el botón para cargar su fichero CSV actualizado.</p>
-                
-                <div class="mt-3 flex items-center space-x-2">
-                    <input type="file" id="csv-file-input" accept=".csv" class="hidden">
-                    <button id="load-tariffs-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold text-sm py-2 px-4 rounded-md transition duration-300">
-                        Cargar Tarifas (CSV)
-                    </button>
-                    <!-- NUEVO BOTÓN PARA RESTABLECER TARIFAS -->
-                    <button id="reset-tariffs-btn" class="bg-gray-400 hover:bg-gray-500 text-white font-semibold text-sm py-2 px-4 rounded-md transition duration-300">
-                        Restablecer Tarifas
-                    </button>
-                    <button onclick="document.getElementById('tariff-guide-modal').classList.remove('hidden');" class="text-yellow-600 text-sm hover:text-yellow-800 font-semibold underline">
-                        ¿Formato CSV?
-                    </button>
-                </div>
-            </div>
-            
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Paso 1: Activa la Cámara</h2>
-            <div class="space-y-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p class="flex items-center text-sm text-blue-800">
-                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 000 2h2a1 1 0 100-2h-2zm-2 4a1 1 0 001 1h4a1 1 0 100-2h-4a1 1 0 00-1 1z" clip-rule="evenodd"></path></svg>
-                    Pulsa el botón, acepta los permisos de cámara y enfoca el QR de tu factura CNMC.
-                </p>
-                <p class="flex items-center text-sm text-blue-800">
-                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 100 2h2a1 1 0 100-2h-2zM4 3a1 1 0 100 2h2a1 1 0 100-2H4zM11 15a1 1 0 100 2h2a1 1 0 100-2h-2zM4 15a1 1 0 100 2h2a1 1 0 100-2H4z" /></svg>
-                    El análisis se hará de forma automática para extraer consumos y potencias.
-                </p>
-            </div>
-            
-            <!-- Botón de Inicio de Escaneo en Vivo -->
-            <button id="start-scan-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 flex items-center justify-center">
-                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Iniciar Escaneo de QR en Vivo
-            </button>
-            <p id="loading-status" class="text-center text-sm text-gray-500 mt-4 hidden">Preparando la cámara...</p>
-            
-            <!-- Simulador para pruebas -->
-            <div id="simulation-input" class="mt-4 p-4 bg-gray-100 rounded-lg">
-                <p class="text-sm font-medium text-gray-600 mb-2">Alternativa: Ingrese CNMC QR data o CUPS manualmente</p>
-                <input type="text" id="cups-input" placeholder="Pegue aquí la cadena CNMC (Ej: cups=ES...)" value="cups=ES0031100000000000AA0F&iniF=18/09/2025&finF=20/10/2025&cfP1=458&cfP2=431&cfP3=34&pP1=4.4&pP2=4.4&imp=51.33" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs">
-                <button id="simulate-scan-btn" class="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition duration-300">
-                    Comparar con Datos Manuales
-                </button>
-            </div>
+    <!-- Navbar Simple -->
+    <div class="w-full bg-drk-900 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-lg mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight">DRK <span class="text-drk-500">Energía</span></h1>
+            <span class="text-xs bg-drk-800 px-2 py-1 rounded text-drk-100">Comparador Pro 2.0TD</span>
         </div>
-
-        <!-- Vista de la Cámara/Escaneo (Vista 2) -->
-        <div id="scanner-view" class="hidden">
-            <p class="text-lg font-semibold text-center mb-3 text-gray-700">Apunta la cámara al QR de la factura</p>
-            <!-- El elemento interactive ahora contendrá el video de la cámara -->
-            <div id="interactive" class="viewport shadow-lg rounded-xl overflow-hidden border-4 border-dashed border-blue-300"></div>
-            <p id="scan-message" class="text-center text-sm mt-3 text-red-500">
-                Asegúrate de otorgar permisos de cámara. Si el QR no se lee, presione Detener o Capturar.
-            </p>
-            <div class="flex space-x-2 mt-4">
-                <button id="capture-photo-btn" class="w-1/2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    Capturar Foto
-                </button>
-                <button id="stop-scan-btn" class="w-1/2 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300">
-                    Detener Escaneo
-                </button>
-            </div>
-        </div>
-
-        <!-- Vista de Resultados (Vista 3) -->
-        <div id="results-view" class="hidden">
-            <h2 class="text-2xl font-bold text-center mb-4 text-green-600">¡Comparación Exitosa!</h2>
-            <div id="cups-display" class="bg-gray-100 p-3 rounded-lg mb-4 text-center">
-                <p class="text-sm font-medium text-gray-600">CUPS Analizado:</p>
-                <p id="cups-value" class="font-mono text-lg text-gray-800 truncate"></p>
-            </div>
-            
-            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Datos de Consumo de tu Factura</h3>
-            <div id="user-consumption-details" class="space-y-2 bg-gray-50 p-4 rounded-lg mb-6">
-                <!-- Se llenará con los datos de Consumo y Potencia del QR -->
-            </div>
-
-            <h3 class="text-xl font-semibold text-gray-700 mb-3">La Mejor Oferta DRK para ti es:</h3>
-            <div id="best-offer-card" class="p-5 bg-yellow-100 border-2 border-yellow-500 rounded-xl shadow-lg mb-6">
-                <p id="best-offer-name" class="text-2xl font-bold text-yellow-800"></p>
-                <p id="best-offer-desc" class="text-gray-700 mt-1"></p>
-                <p class="mt-3 text-sm font-semibold text-gray-800">Ahorro Anual Estimado (Basado en tu Consumo Real):</p>
-                <p id="savings-estimate" class="text-3xl font-extrabold text-green-700 mt-1"></p>
-            </div>
-            
-            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Detalle de Comparativa Anual (Basado en Consumo del QR)</h3>
-            <div id="comparison-details" class="space-y-4">
-                <!-- Se llenará con la comparación de tarifas -->
-            </div>
-
-            <h3 class="text-xl font-semibold text-gray-700 mt-6 mb-3 border-b pb-2">Desglose del Coste de la Mejor Oferta (Periodo de Factura)</h3>
-            <div id="cost-breakdown" class="space-y-4 bg-gray-100 p-4 rounded-lg">
-                 <!-- Aquí se mostrará el desglose detallado del cálculo de la mejor oferta. -->
-            </div>
-
-            <button onclick="resetApp()" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300">
-                Hacer Otra Comparación
-            </button>
-        </div>
-        
-        <!-- Modal de Error -->
-        <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
-            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
-                <h3 class="text-xl font-bold text-red-600 mb-3">Error</h3>
-                <p id="error-message" class="text-gray-700 mb-4"></p>
-                <button onclick="hideErrorModal()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg">Aceptar</button>
-            </div>
-        </div>
-
-        <!-- Modal de Guía de CSV -->
-        <div id="tariff-guide-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
-            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full">
-                <h3 class="text-xl font-bold text-blue-600 mb-3">Formato de Archivo CSV Requerido</h3>
-                <p class="text-gray-700 mb-4 text-sm">Para que la carga funcione, su archivo CSV (exportado desde Excel) debe tener exactamente las siguientes **7 cabeceras** en la primera fila:</p>
-                
-                <div class="bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm font-mono mb-4">
-                    <span class="font-bold text-gray-800">name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2</span>
-                </div>
-
-                <p class="text-sm text-gray-700 mb-3">**Explicación de las columnas:**</p>
-                <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
-                    <li>`name`: Nombre de la oferta (texto).</li>
-                    <li>`description`: Breve descripción de la oferta (texto).</li>
-                    <li>`p1_price`: Precio de la energía en periodo Punta (€/kWh). **(Número)**</li>
-                    <li>`p2_price`: Precio de la energía en periodo Llano (€/kWh). **(Número)**</li>
-                    <li>`p3_price`: Precio de la energía en periodo Valle (€/kWh). **(Número)**</li>
-                    <li>`p_potencia_1`: Precio de la potencia P1 (se espera €/kW/año). **(Número)**</li>
-                    <li>`p_potencia_2`: Precio de la potencia P2 (se espera €/kW/año). **(Número)**</li>
-                </ul>
-
-                <p class="text-sm text-red-500 mt-4">**NOTA IMPORTANTE:** Si sube un precio de potencia bajo (ej: `0.099`), el sistema lo convertirá automáticamente a **precio ANUAL** (x365) para asegurar la precisión del cálculo por día.</p>
-                <p class="text-sm text-red-500 mt-2">Asegúrese de que los precios usen el **punto** como separador decimal (ej: `0.125`).</p>
-
-                <button onclick="document.getElementById('tariff-guide-modal').classList.add('hidden');" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg">Cerrar</button>
-            </div>
-        </div>
-
-
     </div>
 
+    <div id="app" class="w-full max-w-lg mx-auto p-4 md:p-6 flex-grow">
+
+        <!-- VISTA 1: INICIO Y CARGA -->
+        <div id="initial-view" class="fade-in">
+            
+            <!-- Tarjeta de Estado de Tarifas -->
+            <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm mb-6 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-drk-500"></div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="font-bold text-slate-700 text-lg">Base de Datos de Tarifas</p>
+                        <p class="text-sm text-slate-500 mt-1">Estado: <span id="tariff-count" class="font-bold text-drk-600">0 cargadas</span></p>
+                    </div>
+                    <div class="bg-drk-50 p-2 rounded-full text-drk-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    </div>
+                </div>
+                
+                <div class="mt-4 flex flex-col gap-2">
+                    <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+                    <button id="load-tariffs-btn" class="w-full bg-drk-600 hover:bg-drk-800 text-white font-medium py-2.5 px-4 rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        Cargar Tarifas (CSV)
+                    </button>
+                    <div class="flex gap-2">
+                        <button id="reset-tariffs-btn" class="w-1/2 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium py-2 rounded-xl text-xs transition">
+                            Restablecer
+                        </button>
+                        <button onclick="document.getElementById('tariff-guide-modal').classList.remove('hidden');" class="w-1/2 text-drk-600 hover:underline text-xs font-medium text-center py-2">
+                            ¿Formato CSV?
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tarjeta de Acción Principal -->
+            <div class="bg-white p-6 rounded-3xl shadow-xl text-center border-t-4 border-drk-500">
+                <div class="w-16 h-16 bg-drk-50 rounded-full flex items-center justify-center mx-auto mb-4 text-drk-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Analizar Factura</h2>
+                <p class="text-slate-500 mb-6">Escanea el código QR de la factura de tu cliente para calcular el ahorro exacto en tiempo real.</p>
+                
+                <button id="start-scan-btn" class="w-full bg-gradient-to-r from-drk-600 to-drk-800 hover:from-drk-700 hover:to-drk-900 text-white font-bold py-4 px-6 rounded-2xl shadow-lg transform transition active:scale-95 flex items-center justify-center gap-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span>ESCANEAR QR AHORA</span>
+                </button>
+                <p id="loading-status" class="text-center text-sm text-slate-400 mt-4 hidden">Inicializando cámara...</p>
+            </div>
+
+             <!-- Simulación Manual (Colapsable o pequeña) -->
+             <div class="mt-8 pt-6 border-t border-slate-200">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Modo Manual / Pruebas</p>
+                <div class="flex gap-2">
+                    <input type="text" id="cups-input" placeholder="Pegar cadena QR CNMC..." class="w-full bg-white border border-slate-200 text-xs p-3 rounded-xl focus:ring-2 focus:ring-drk-500 outline-none">
+                    <button id="simulate-scan-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold py-2 px-4 rounded-xl text-xs transition">
+                        Simular
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISTA 2: ESCÁNER -->
+        <div id="scanner-view" class="hidden flex-col h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-slate-700">Escaneando Factura...</h2>
+                <button id="stop-scan-btn" class="text-red-500 font-bold text-sm bg-red-50 px-3 py-1 rounded-lg">Cancelar</button>
+            </div>
+            
+            <div class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden shadow-2xl mb-4">
+                <div id="interactive" class="viewport w-full h-full"></div>
+                <!-- Guía visual de escaneo -->
+                <div class="absolute inset-0 border-2 border-drk-500 opacity-50 m-8 rounded-lg pointer-events-none"></div>
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div class="w-64 h-1 bg-red-500 opacity-50"></div>
+                </div>
+            </div>
+
+            <p id="scan-message" class="text-center text-sm text-slate-500 mb-4">Enfoca el código QR de la CNMC.</p>
+            
+            <button id="capture-photo-btn" class="w-full bg-white border-2 border-drk-500 text-drk-700 font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Capturar Foto Manualmente
+            </button>
+        </div>
+
+        <!-- VISTA 3: RESULTADOS (DISEÑO PREMIUM) -->
+        <div id="results-view" class="hidden animate-fade-in-up">
+            
+            <!-- Encabezado Resultados -->
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold mb-2">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Análisis Completado
+                </div>
+                <h2 class="text-2xl font-black text-slate-800">Resultado del Estudio</h2>
+                <p class="text-sm text-slate-500">CUPS: <span id="cups-value" class="font-mono text-slate-700"></span></p>
+            </div>
+
+            <!-- TARJETA PRINCIPAL: COMPARATIVA DE AHORRO -->
+            <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 mb-8 relative">
+                <!-- Header Degradado -->
+                <div class="bg-gradient-to-r from-drk-800 to-drk-600 p-6 text-white text-center relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-10">
+                        <svg class="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
+                    </div>
+                    <p class="uppercase tracking-widest text-xs font-semibold text-drk-100 mb-1">LA MEJOR OPCIÓN PARA TI ES</p>
+                    <h2 id="best-offer-name" class="text-2xl md:text-3xl font-extrabold leading-tight mb-2">Nombre Tarifa</h2>
+                    <p id="best-offer-desc" class="text-drk-100 text-sm opacity-90">Descripción de la tarifa</p>
+                </div>
+
+                <!-- Cuerpo de Comparación -->
+                <div class="p-6">
+                    <div class="flex flex-col gap-6">
+                        
+                        <!-- Bloque Visual de Comparación -->
+                        <div class="flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-2xl p-6 border border-slate-200">
+                            
+                            <!-- Ahorro Grande -->
+                            <div class="text-center">
+                                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Tu Ahorro Anual Estimado</p>
+                                <p id="savings-estimate" class="text-5xl font-black text-green-500 tracking-tight">- €</p>
+                            </div>
+
+                            <!-- Línea divisoria visual -->
+                            <div class="w-full h-px bg-slate-200 my-2"></div>
+
+                            <!-- Comparativa Lado a Lado -->
+                            <div class="w-full flex justify-between items-center text-sm md:text-base">
+                                <div class="text-center w-1/2 border-r border-slate-200 pr-2">
+                                    <p class="text-slate-400 text-xs font-semibold mb-1">Coste Actual (Proyectado)</p>
+                                    <p id="old-annual-cost-display" class="font-bold text-red-400 text-lg md:text-xl line-through decoration-red-400/50 decoration-2">0,00 €</p>
+                                </div>
+                                <div class="text-center w-1/2 pl-2">
+                                    <p class="text-drk-600 text-xs font-bold mb-1">Nuevo Coste DRK</p>
+                                    <p id="new-annual-cost-display" class="font-black text-drk-800 text-2xl md:text-3xl">0,00 €</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="grid grid-cols-1 gap-3 mb-8">
+                 <!-- Botón para ver desglose (Toggle) -->
+                 <button onclick="document.getElementById('details-container').classList.toggle('hidden')" class="text-center text-drk-600 font-bold text-sm hover:underline flex items-center justify-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    Ver desglose detallado del cálculo
+                </button>
+            </div>
+
+            <!-- Contenedor de Detalles (Oculto por defecto o visible, a tu elección) -->
+            <div id="details-container" class="hidden space-y-6">
+                
+                <h3 class="text-lg font-bold text-slate-800 border-l-4 border-drk-500 pl-3">Datos Extraídos de Factura</h3>
+                <div id="user-consumption-details" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-sm">
+                    <!-- Se llena con JS -->
+                </div>
+
+                <h3 class="text-lg font-bold text-slate-800 border-l-4 border-green-500 pl-3">Cálculo Oficial de la Oferta</h3>
+                <div id="cost-breakdown" class="bg-white p-0 rounded-xl border border-slate-200 shadow-sm overflow-hidden text-sm">
+                    <!-- Se llena con JS -->
+                </div>
+
+                <!-- Debug: Comparación Técnica -->
+                <div id="comparison-details" class="hidden"></div> 
+            </div>
+
+            <div class="mt-8">
+                <button onclick="resetApp()" class="w-full bg-white border-2 border-slate-200 hover:border-drk-500 text-slate-600 hover:text-drk-600 font-bold py-4 rounded-xl transition flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Realizar Nueva Comparación
+                </button>
+            </div>
+
+        </div>
+
+        <!-- MODALES (Error y Guía) -->
+        <!-- FIX: Modal de Error -->
+        <div id="error-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+                <div class="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4" id="error-icon">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2" id="error-title">¡Ups! Algo salió mal</h3>
+                <p id="error-message" class="text-slate-600 text-sm mb-6"></p>
+                <button onclick="hideErrorModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl">Entendido</button>
+            </div>
+        </div>
+
+        <div id="tariff-guide-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-lg w-full">
+                <h3 class="text-xl font-bold text-drk-800 mb-4">Formato CSV Requerido</h3>
+                <div class="bg-slate-100 p-3 rounded-lg overflow-x-auto text-xs font-mono mb-4 text-slate-700">
+                    name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2
+                </div>
+                <p class="text-xs text-slate-500 mb-4">Asegúrese de usar el <strong>punto (.)</strong> como separador decimal. Si el precio de potencia es < 1, se convertirá automáticamente a precio anual.</p>
+                <button onclick="document.getElementById('tariff-guide-modal').classList.add('hidden');" class="w-full bg-drk-600 hover:bg-drk-700 text-white font-bold py-3 rounded-xl">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT PRINCIPAL -->
     <script type="module">
-        // --- 1. CONFIGURACIÓN INICIAL DE FIREBASE (OBLIGATORIO PARA EL ENTORNO) ---
+        // Importaciones de Firebase (Standard)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-
         if (Object.keys(firebaseConfig).length > 0) {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
-
             const initAuth = async () => {
                 try {
-                    if (typeof __initial_auth_token !== 'undefined') {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (error) {
-                    console.error("Error de autenticación de Firebase:", error);
-                }
+                    if (typeof __initial_auth_token !== 'undefined') await signInWithCustomToken(auth, __initial_auth_token);
+                    else await signInAnonymously(auth);
+                } catch (error) { console.error("Firebase Auth Error:", error); }
             };
             initAuth();
-        } else {
-            console.warn("Configuración de Firebase no encontrada. El comparador seguirá funcionando con datos de simulación.");
         }
-        
-        // Constantes de cálculo
-        const ANNUAL_DAYS = 365; // Se necesita globalmente para la conversión en parseCSV
-        const LOCAL_STORAGE_KEY = 'drk_loaded_tariffs'; // Clave para guardar en localStorage
-        
-        // ==============================================================================
-        //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA (NO UTILIZADAS AL INICIO) !!!
-        // ==============================================================================
-        const defaultTariffs = [
-            // Lista de tarifas de ejemplo omitida
-        ];
-        // ==============================================================================
 
-        let currentTariffs = []; // Se inicializará desde localStorage o se mantendrá vacío
+        // CONSTANTES GLOBALES
+        const ANNUAL_DAYS = 365;
+        const LOCAL_STORAGE_KEY = 'drk_loaded_tariffs';
+
+        // VARIABLES DE ESTADO
+        let currentTariffs = [];
         let scannerRunning = false;
-        
-        // Referencias a los elementos del DOM
-        const initialView = document.getElementById('initial-view');
-        const resultsView = document.getElementById('results-view');
-        const scannerView = document.getElementById('scanner-view'); 
-        const interactiveViewport = document.getElementById('interactive'); 
-        const startScanBtn = document.getElementById('start-scan-btn');
-        const stopScanBtn = document.getElementById('stop-scan-btn'); 
-        const capturePhotoBtn = document.getElementById('capture-photo-btn');
-        const loadingStatus = document.getElementById('loading-status');
-        const simulationInput = document.getElementById('simulation-input');
-        const simulateScanBtn = document.getElementById('simulate-scan-btn');
-        const cupsInput = document.getElementById('cups-input');
-        const csvFileInput = document.getElementById('csv-file-input');
-        const loadTariffsBtn = document.getElementById('load-tariffs-btn');
-        const resetTariffsBtn = document.getElementById('reset-tariffs-btn'); 
-        const tariffCountSpan = document.getElementById('tariff-count');
+        let stream = null, video = null, canvas = null, canvasCtx = null, animationFrameId = null;
 
+        // ELEMENTOS DOM
+        const els = {
+            initialView: document.getElementById('initial-view'),
+            resultsView: document.getElementById('results-view'),
+            scannerView: document.getElementById('scanner-view'),
+            interactiveViewport: document.getElementById('interactive'),
+            startScanBtn: document.getElementById('start-scan-btn'),
+            stopScanBtn: document.getElementById('stop-scan-btn'),
+            capturePhotoBtn: document.getElementById('capture-photo-btn'),
+            loadingStatus: document.getElementById('loading-status'),
+            simulationInput: document.getElementById('simulation-input'),
+            simulateScanBtn: document.getElementById('simulate-scan-btn'),
+            cupsInput: document.getElementById('cups-input'),
+            csvFileInput: document.getElementById('csv-file-input'),
+            loadTariffsBtn: document.getElementById('load-tariffs-btn'),
+            resetTariffsBtn: document.getElementById('reset-tariffs-btn'),
+            tariffCountSpan: document.getElementById('tariff-count'),
+            
+            // Elementos de resultados
+            bestOfferName: document.getElementById('best-offer-name'),
+            bestOfferDesc: document.getElementById('best-offer-desc'),
+            savingsEstimate: document.getElementById('savings-estimate'),
+            oldAnnualCostDisplay: document.getElementById('old-annual-cost-display'),
+            newAnnualCostDisplay: document.getElementById('new-annual-cost-display'),
+            cupsValue: document.getElementById('cups-value'),
+            userConsumptionDetails: document.getElementById('user-consumption-details'),
+            costBreakdown: document.getElementById('cost-breakdown')
+        };
 
-        // --- Funciones de Persistencia ---
+        // --- GESTIÓN DE TARIFAS Y PERSISTENCIA ---
+
+        function updateTariffCount() {
+            els.tariffCountSpan.textContent = `${currentTariffs.length} cargadas`;
+            // Estilo visual si hay tarifas o no
+            if (currentTariffs.length > 0) {
+                els.tariffCountSpan.classList.remove('text-slate-400');
+                els.tariffCountSpan.classList.add('text-green-600');
+            } else {
+                els.tariffCountSpan.classList.add('text-slate-400');
+                els.tariffCountSpan.classList.remove('text-green-600');
+            }
+        }
 
         function loadTariffsFromStorage() {
             try {
-                const storedTariffs = localStorage.getItem(LOCAL_STORAGE_KEY);
-                if (storedTariffs) {
-                    return JSON.parse(storedTariffs);
-                }
-            } catch (e) {
-                console.error("Error al cargar tarifas de localStorage:", e);
-                localStorage.removeItem(LOCAL_STORAGE_KEY); // Limpiar datos corruptos
-            }
+                const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (stored) return JSON.parse(stored);
+            } catch (e) { console.error("Storage Error", e); }
             return [];
         }
 
         function saveTariffsToStorage() {
-            try {
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentTariffs));
-            } catch (e) {
-                console.error("Error al guardar tarifas en localStorage:", e);
-            }
-        }
-        
-        // --- Funciones de Utilidad y UI ---
-        
-        function updateTariffCount() {
-            tariffCountSpan.textContent = `${currentTariffs.length} tarifas`;
-            // Opcionalmente, deshabilitar escaneo si no hay tarifas
-            if (currentTariffs.length === 0) {
-                 startScanBtn.disabled = true;
-            } else {
-                 startScanBtn.disabled = false;
-            }
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentTariffs));
         }
 
-        // FUNCIÓN PARA RESTABLECER LAS TARIFAS (VACIAR MEMORIA)
         function resetTariffs() {
-            currentTariffs = []; // Vacía la memoria por completo
-            localStorage.removeItem(LOCAL_STORAGE_KEY); // ELIMINA DEL ALMACENAMIENTO PERSISTENTE
+            currentTariffs = [];
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
             updateTariffCount();
-            showErrorModal("¡Memoria de tarifas vaciada! Ahora debe cargar un nuevo archivo CSV para comparar.");
-            console.log("Tarifas restablecidas. Lista vacía y localStorage limpio.");
-        }
-        
-        function showView(viewId) {
-            initialView.classList.add('hidden');
-            resultsView.classList.add('hidden');
-            scannerView.classList.add('hidden'); 
-            document.getElementById(viewId).classList.remove('hidden');
+            // FIX: Usar mensaje informativo en lugar de error
+            window.showMessageModal("Memoria de tarifas borrada. Por favor cargue un nuevo CSV.");
         }
 
-        function showErrorModal(message) {
-            document.getElementById('error-message').textContent = message;
+        // --- GESTIÓN DE VISTAS Y ERRORES ---
+
+        function showView(viewId) {
+            els.initialView.classList.add('hidden');
+            els.resultsView.classList.add('hidden');
+            els.scannerView.classList.add('hidden');
+            els.resultsView.classList.remove('animate-fade-in-up'); // Reset animation
+            
+            const target = document.getElementById(viewId);
+            target.classList.remove('hidden');
+            if(viewId === 'results-view') target.classList.add('animate-fade-in-up');
+        }
+
+        window.showErrorModal = (msg) => {
+            document.getElementById('error-title').textContent = "¡Ups! Algo salió mal";
+            document.getElementById('error-icon').className = "w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4";
+            document.getElementById('error-icon').innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+            document.getElementById('error-message').textContent = msg;
             document.getElementById('error-modal').classList.remove('hidden');
             document.getElementById('error-modal').classList.add('flex');
+        }
+
+        // FIX: Nueva función para mensajes informativos o de éxito
+        window.showMessageModal = (msg) => {
+             document.getElementById('error-title').textContent = "Operación Exitosa";
+             document.getElementById('error-icon').className = "w-12 h-12 bg-drk-100 text-drk-500 rounded-full flex items-center justify-center mx-auto mb-4";
+             document.getElementById('error-icon').innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+             document.getElementById('error-message').textContent = msg;
+             document.getElementById('error-modal').classList.remove('hidden');
+             document.getElementById('error-modal').classList.add('flex');
         }
 
         window.hideErrorModal = () => {
             document.getElementById('error-modal').classList.add('hidden');
             document.getElementById('error-modal').classList.remove('flex');
+            // Resetear el modal de vuelta a error por si acaso
+            document.getElementById('error-title').textContent = "¡Ups! Algo salió mal";
+            document.getElementById('error-icon').className = "w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4";
         }
 
-        function setLoading(isLoading, message = 'Cargando...') {
-            loadingStatus.textContent = message;
-            if (isLoading) {
-                startScanBtn.disabled = true;
-                startScanBtn.innerHTML = `<div class="loading-ring mr-2"></div> ${message}`;
-                loadingStatus.classList.remove('hidden');
-                simulationInput.classList.add('hidden');
-            } else {
-                // Re-habilitar si hay tarifas cargadas
-                if (currentTariffs.length > 0) {
-                     startScanBtn.disabled = false;
-                }
-                startScanBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Iniciar Escaneo de QR en Vivo`;
-                loadingStatus.classList.add('hidden');
-                // Mostrar simulación si no estamos cargando
-                simulationInput.classList.remove('hidden'); 
-            }
-        }
-        
         window.resetApp = () => {
             stopScanner();
             showView('initial-view');
-            setLoading(false, 'Listo para escanear');
+            els.loadingStatus.classList.add('hidden');
+            els.startScanBtn.disabled = false;
         };
 
-        // --- Lógica de Carga de Archivo CSV ---
-
+        // --- LÓGICA DE CARGA CSV ---
+        // (Mantenemos tu lógica parseCSV exacta)
         function parseCSV(text) {
             const lines = text.trim().split('\n');
             if (lines.length < 2) return [];
-
             let rawHeaders = lines[0].trim();
             let delimiter = ',';
-            if (rawHeaders.split(',').length < 7 && rawHeaders.split(';').length >= 7) {
-                delimiter = ';';
-            }
-            
+            if (rawHeaders.split(',').length < 7 && rawHeaders.split(';').length >= 7) delimiter = ';';
             const headers = rawHeaders.split(delimiter).map(h => h.trim().toLowerCase());
-            const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'p_potencia_1', 'p_potencia_2'];
             
+            // Requerir cabeceras específicas
+            const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'p_potencia_1', 'p_potencia_2'];
             if (!requiredHeaders.every(h => headers.includes(h))) {
                 throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2.");
             }
 
             const newTariffs = [];
             for (let i = 1; i < lines.length; i++) {
-                const values = lines[i].split(delimiter); 
-                if (values.length !== headers.length) continue; 
-
+                const values = lines[i].split(delimiter);
+                if (values.length !== headers.length) continue;
                 const tariff = { cups_match: ["2.0TD"] };
-                
                 for (let j = 0; j < headers.length; j++) {
                     const header = headers[j];
                     const value = values[j].trim();
-                    
-                    if (header.includes('price') || header.includes('potencia')) { 
+                    if (header.includes('price') || header.includes('potencia')) {
                         const numValue = parseFloat(value.replace(',', '.'));
-                        if (isNaN(numValue)) {
-                            console.warn(`Valor no numérico en columna ${header} en la línea ${i + 1}. Fila ignorada.`);
-                            continue; 
-                        }
-
-                        // FIX: Si el precio de potencia es menor que 1.0, se asume que es €/kW/día y se convierte a €/kW/año
-                        if (header.includes('potencia') && numValue < 1.0 && numValue > 0) {
-                            // Convertir €/kW/día (ej: 0.099) a €/kW/año (ej: 36.135)
-                            tariff[header] = numValue * ANNUAL_DAYS;
-                            console.warn(`[CSV] Precio de potencia '${header}' (${numValue.toFixed(4)}) detectado como diario. Convertido a anual: ${tariff[header].toFixed(4)}.`);
-                        } else {
-                            // Guardar precio de energía (€/kWh) o precio de potencia (€/kW/año)
-                            tariff[header] = numValue;
+                        if (!isNaN(numValue)) {
+                            // Conversión automática de precio diario a anual si es necesario
+                            if (header.includes('potencia') && numValue < 1.0 && numValue > 0) {
+                                tariff[header] = numValue * ANNUAL_DAYS;
+                            } else {
+                                tariff[header] = numValue;
+                            }
                         }
                     } else {
                         tariff[header] = value;
                     }
                 }
-                
-                if (tariff.p1_price !== undefined) {
-                    newTariffs.push(tariff);
-                }
+                if (tariff.p1_price !== undefined) newTariffs.push(tariff);
             }
             return newTariffs;
         }
@@ -413,572 +431,314 @@
         function loadTariffsFromFile(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = (e) => {
                 try {
-                    const loadedTariffs = parseCSV(e.target.result);
-                    if (loadedTariffs.length === 0) {
-                           showErrorModal("No se pudieron cargar tarifas válidas del archivo CSV. Revise el formato y las cabeceras.");
-                           return;
-                    }
+                    const loaded = parseCSV(e.target.result);
+                    if (loaded.length === 0) return window.showErrorModal("CSV inválido. Revise el formato. Podría faltar la cabecera o datos.");
                     
-                    currentTariffs = loadedTariffs;
-                    saveTariffsToStorage(); // GUARDAR EN LOCAL STORAGE
+                    // FIX: Si pasa la validación, guardar y mostrar modal de éxito
+                    currentTariffs = loaded;
+                    saveTariffsToStorage();
                     updateTariffCount();
-                    showErrorModal(`¡Carga Exitosa! Se han cargado ${currentTariffs.length} tarifas nuevas.`);
-                    console.log("Tarifas cargadas desde CSV:", currentTariffs);
-
-                } catch (error) {
-                    showErrorModal(`Error al procesar el archivo: ${error.message}`);
-                    console.error("Error al procesar CSV:", error);
+                    window.showMessageModal(`¡Éxito! ${currentTariffs.length} tarifas cargadas.`);
+                } catch (err) { 
+                    // Si falla el parseo (e.g. cabeceras incorrectas), muestra error
+                    window.showErrorModal("Error al procesar archivo: " + err.message); 
                 }
             };
             reader.readAsText(file);
-            csvFileInput.value = '';
-        }
-        
-        // --- PARSER DE CÓDIGO QR CNMC (Adaptado de la lógica del usuario) ---
-
-        function dateDiffInDays(date1, date2) {
-            // Convierte la cadena de fecha (DD/MM/YYYY o YYYY-MM-DD) a objeto Date
-            const parseDate = (dateStr) => {
-                if (!dateStr || dateStr.length !== 10) return null;
-
-                let parts;
-                if (dateStr.includes('/')) {
-                    // Formato CNMC QR: DD/MM/YYYY
-                    parts = dateStr.split('/');
-                    if (parts.length === 3) {
-                        // Date(YYYY, MM-1, DD)
-                        return new Date(parts[2], parts[1] - 1, parts[0]);
-                    }
-                } else if (dateStr.includes('-')) {
-                    // FIX: Formato Manual/ISO: YYYY-MM-DD
-                    parts = dateStr.split('-');
-                    if (parts.length === 3) {
-                        // Date(YYYY, MM-1, DD)
-                        return new Date(parts[0], parts[1] - 1, parts[2]);
-                    }
-                }
-                return null;
-            };
-
-            const dt1 = parseDate(date1);
-            const dt2 = parseDate(date2);
-
-            if (!dt1 || !dt2) return 0;
-            
-            // Cálculo de diferencia de días inclusiva
-            const diffTime = Math.abs(dt2.getTime() - dt1.getTime());
-            return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
+            els.csvFileInput.value = '';
         }
 
-        function parseQR(text) {
-            const params = {};
-            // Reemplazar , por . en valores numéricos antes de parsear si es necesario,
-            // aunque CNMC QR utiliza punto decimal. Aseguramos el reemplazo por si acaso.
-            text.split("&").forEach(pair => {
-                const [key, value] = pair.split("=");
-                params[key] = decodeURIComponent(value || "").replace(',', '.');
-            });
+        // --- LÓGICA DE ESCANEO (jsQR) ---
+
+        function startScanner() {
+            if (currentTariffs.length === 0) return window.showErrorModal("Primero debe cargar las tarifas (CSV).");
+            if (scannerRunning) return;
             
-            // Consumos (convertir a número, usando 0 como fallback)
-            const cfP1 = parseFloat(params.cfP1 || 0);
-            const cfP2 = parseFloat(params.cfP2 || 0);
-            const cfP3 = parseFloat(params.cfP3 || 0);
-            const consumoTotal = cfP1 + cfP2 + cfP3;
-
-            // Potencias Contratadas (pP1 y pP2 son las potencias, no los precios)
-            const pP1 = parseFloat(params.pP1 || 0); // Potencia Contratada P1 (Punta/Llano)
-            const pP2 = parseFloat(params.pP2 || 0); // Potencia Contratada P2 (Valle)
+            showView('scanner-view');
+            scannerRunning = true;
             
-            // Importe Total de la factura (imp)
-            const imp = parseFloat(params.imp || 0);
+            video = document.createElement('video');
+            video.autoplay = true;
+            video.playsInline = true;
+            canvas = document.createElement('canvas');
+            canvasCtx = canvas.getContext('2d');
+            
+            els.interactiveViewport.innerHTML = '';
+            els.interactiveViewport.appendChild(video);
 
-            // Fechas
-            const iniF = params.iniF || '';
-            const finF = params.finF || '';
-            let diasFacturados = 0;
-            if (iniF && finF) {
-                try {
-                    // El formato de fecha en el QR es DD/MM/YYYY
-                    diasFacturados = dateDiffInDays(iniF, finF);
-                } catch (e) {
-                    console.error("Error calculando días:", e);
-                }
-            }
-
-            return {
-                cups: params.cups || 'CUPS NO ENCONTRADO',
-                dias_facturados: diasFacturados,
-                
-                // Consumos
-                consumo_punta: cfP1,
-                consumo_llano: cfP2,
-                consumo_valle: cfP3,
-                consumo_total: consumoTotal,
-
-                // Potencias (Contratada)
-                potencia_p1_kw: pP1, 
-                potencia_p2_kw: pP2,
-                
-                // Otros datos para mostrar
-                fecha_inicio: iniF,
-                fecha_fin: finF,
-                importe_total: imp, // Usamos el número para los cálculos
-                importe_total_display: imp.toFixed(2) + " €", // Para mostrar en la UI
-                codigo_postal: params.cp || '-',
-                
-                raw_data: params
-            };
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(s => {
+                    stream = s;
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => { video.play(); scanLoop(); };
+                })
+                .catch(err => {
+                    console.error(err);
+                    stopScanner();
+                    window.showErrorModal("No se pudo acceder a la cámara.");
+                    window.resetApp();
+                });
         }
-
-        // --- Lógica de Escaneo en Vivo (jsQR) ---
-        
-        let stream = null;
-        let video = null;
-        let canvas = null;
-        let canvasCtx = null;
-        let animationFrameId = null;
 
         function scanLoop() {
-            // ... (Lógica del escaneo en vivo omitida, sin cambios)
             if (!scannerRunning || !video || video.readyState !== video.HAVE_ENOUGH_DATA) {
                 animationFrameId = requestAnimationFrame(scanLoop);
                 return;
             }
-
-            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            if (canvas.width !== video.videoWidth) {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
             }
-
             canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(imageData.data, imageData.width, imageData.height);
-
             if (code) {
                 stopScanner();
                 handleQRRead(code.data);
-                return;
+            } else {
+                animationFrameId = requestAnimationFrame(scanLoop);
             }
-            animationFrameId = requestAnimationFrame(scanLoop);
-        }
-
-        function startScanner() {
-            if (currentTariffs.length === 0) {
-                showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV.");
-                return;
-            }
-            if (scannerRunning) return;
-
-            showView('scanner-view');
-            scannerRunning = true;
-            document.getElementById('scan-message').textContent = 'Preparando la cámara...';
-
-            // 1. Setup video and canvas elements
-            video = document.createElement('video');
-            video.autoplay = true;
-            video.playsInline = true; 
-            canvas = document.createElement('canvas');
-            // ... (Lógica de la cámara y escaneo omitida, sin cambios)
-            canvasCtx = canvas.getContext('2d');
-            
-            interactiveViewport.innerHTML = '';
-            interactiveViewport.appendChild(video);
-
-            // 2. Request camera access
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-                .then(function(s) {
-                    stream = s;
-                    video.srcObject = stream;
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        document.getElementById('scan-message').textContent = 'Apunta la cámara al QR de la factura...';
-                        scanLoop();
-                    };
-                })
-                .catch(function(err) {
-                    console.error("Error al acceder a la cámara:", err);
-                    stopScanner();
-                    showView('initial-view');
-                    showErrorModal("No se pudo acceder a la cámara. Por favor, revisa los permisos.");
-                });
         }
 
         function stopScanner() {
-            // ... (Lógica para detener el escaneo omitida, sin cambios)
-            if (scannerRunning) {
-                scannerRunning = false;
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                    animationFrameId = null;
-                }
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                    stream = null;
-                }
-                if (video) {
-                    video.srcObject = null;
-                    interactiveViewport.innerHTML = '';
-                    video = null;
-                }
-                canvas = null;
-                canvasCtx = null;
-            }
+            scannerRunning = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            video = null;
         }
 
-        // --- LÓGICA DE CAPTURA MANUAL DE FOTO ---
         function capturePhoto() {
-            // ... (Lógica de captura de foto omitida, sin cambios)
-            if (!scannerRunning || !video || video.readyState !== video.HAVE_ENOUGH_DATA) {
-                showErrorModal("El feed de la cámara no está listo para capturar. Inicie el escaneo primero.");
-                return;
-            }
-
-            document.getElementById('scan-message').textContent = 'Capturando y analizando la imagen...';
-            
+            if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) return;
             canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(imageData.data, imageData.width, imageData.height);
-
             if (code) {
                 stopScanner();
                 handleQRRead(code.data);
             } else {
-                showErrorModal("No se pudo detectar un código QR en la imagen capturada. Intente de nuevo o reajuste la imagen.");
-                document.getElementById('scan-message').textContent = 'Apunta la cámara al QR de la factura';
+                window.showErrorModal("No se detectó QR en la imagen. Intente acercarse más.");
             }
         }
-        
-        // --- FUNCIÓN DE ENTRADA DE DATOS (QR o Manual) ---
 
-        function handleQRRead(rawCode) {
-            // ... (Lógica de lectura de QR omitida, sin cambios)
-            let rawText = rawCode.trim();
-            
-            // Si la cadena parece una URL (al escanear desde un documento PDF)
-            try {
-                const url = new URL(rawCode);
-                // Si la URL contiene parámetros, usamos el query string como datos CNMC
-                if (url.searchParams.toString().length > 0) {
-                    rawText = url.searchParams.toString();
+        // --- LÓGICA DE PARSEO Y CÁLCULO (Tu lógica exacta) ---
+
+        function dateDiffInDays(d1, d2) {
+            const parse = (str) => {
+                if (!str || str.length !== 10) return null;
+                if (str.includes('/')) {
+                    const p = str.split('/');
+                    return new Date(p[2], p[1]-1, p[0]);
                 }
-            } catch (e) {
-                // No es una URL válida, se asume que rawCode es la cadena CNMC directa
+                if (str.includes('-')) {
+                    const p = str.split('-');
+                    return new Date(p[0], p[1]-1, p[2]);
+                }
+                return null;
             }
+            const dt1 = parse(d1);
+            const dt2 = parse(d2);
+            if(!dt1 || !dt2) return 0;
+            return Math.ceil(Math.abs(dt2 - dt1) / (1000 * 60 * 60 * 24)) + 1;
+        }
 
-            const parsedData = parseQR(rawText);
+        function handleQRRead(raw) {
+            // Limpieza básica
+            if (raw.includes('?')) raw = raw.split('?')[1] || raw;
+            
+            const p = {};
+            raw.split('&').forEach(part => {
+                const [k, v] = part.split('=');
+                if(k) p[k] = decodeURIComponent(v||'').replace(',', '.');
+            });
 
-            if (parsedData.cups.includes('NO ENCONTRADO') || parsedData.dias_facturados === 0) {
-                showErrorModal(`El código QR no contiene datos válidos de CUPS o el periodo de facturación es inválido. Días detectados: ${parsedData.dias_facturados}`);
-                showView('initial-view');
+            // Parseo de datos CNMC
+            const data = {
+                cups: p.cups || 'No detectado',
+                dias_facturados: dateDiffInDays(p.iniF, p.finF),
+                consumo_punta: parseFloat(p.cfP1||0),
+                consumo_llano: parseFloat(p.cfP2||0),
+                consumo_valle: parseFloat(p.cfP3||0),
+                consumo_total: parseFloat(p.cfP1||0)+parseFloat(p.cfP2||0)+parseFloat(p.cfP3||0),
+                potencia_p1_kw: parseFloat(p.pP1||0),
+                potencia_p2_kw: parseFloat(p.pP2||0),
+                importe_total: parseFloat(p.imp||0),
+                fechas: `${p.iniF || '?'} - ${p.finF || '?'}`
+            };
+
+            if (data.dias_facturados === 0 || data.importe_total === 0) {
+                window.showErrorModal("QR incompleto. No se encontraron fechas o importes válidos.");
+                window.resetApp();
                 return;
             }
-            
-            // Añadir el importe total de la factura extraído a la tarjeta de consumo
-            document.getElementById('user-consumption-details').setAttribute('data-original-cost', parsedData.importe_total);
 
-            compareOffers(parsedData);
+            compareOffers(data);
         }
 
-        // --- Lógica de Comparación de Tarifas ---
-        
-        // Función que realiza el cálculo de costes para UNA oferta y el periodo de la factura.
-        function calculateOfferCost(tariff, data) {
-            // FIX: Declarar constantes de impuestos dentro de la función para evitar la redeclaración global.
+        function compareOffers(data) {
             const IVA_RATE = 0.21;
-            const IE_RATE = 0.05; // Impuesto Eléctrico (5%)
+            const IE_RATE = 0.05;
             
-            const { dias_facturados, consumo_punta, consumo_llano, consumo_valle, potencia_p1_kw, potencia_p2_kw } = data;
-
-            // --- TÉRMINO ENERGÍA (3 Periodos) ---
-            const costEnergyP1 = consumo_punta * tariff.p1_price;
-            const costEnergyP2 = consumo_llano * tariff.p2_price;
-            const costEnergyP3 = consumo_valle * tariff.p3_price;
-            const subtotalEnergy = costEnergyP1 + costEnergyP2 + costEnergyP3;
-
-            // --- TÉRMINO POTENCIA (2 Periodos) ---
-            // Precio Potencia Diario (€/kW/día) = Precio Anual (€/kW/año) / 365
-            const pricePotenciaP1Daily = tariff.p_potencia_1 / ANNUAL_DAYS;
-            const pricePotenciaP2Daily = tariff.p_potencia_2 / ANNUAL_DAYS;
-
-            // Coste Potencia = Potencia Contratada (kW) * Días Facturados * Precio Diario (€/kW/día)
-            const costFixedP1 = potencia_p1_kw * dias_facturados * pricePotenciaP1Daily;
-            const costFixedP2 = potencia_p2_kw * dias_facturados * pricePotenciaP2Daily;
-            const subtotalPotencia = costFixedP1 + costFixedP2;
-
-            // --- CÁLCULO DE IMPUESTOS Y BASE IMPONIBLE ---
-
-            // Subtotal Base P+E (P+E antes del Impuesto Eléctrico)
-            const subtotalBasePE = subtotalPotencia + subtotalEnergy;
-
-            // Impuesto Eléctrico (IE) -> 5% sobre (Subtotal Potencia + Subtotal Energía)
-            const impuestoElectrico = subtotalBasePE * IE_RATE;
-            
-            // Base Imponible (P+E + IE)
-            const baseImponible = subtotalBasePE + impuestoElectrico;
-
-            // IVA (21%)
-            const totalIVA = baseImponible * IVA_RATE;
-            
-            // Coste Total del Periodo (TOTAL FACTURA)
-            const totalPeriodCostWithOffer = baseImponible + totalIVA;
-
-            // Coste Anual Proyectado (para la comparación de ahorro)
-            const factorAnual = ANNUAL_DAYS / dias_facturados;
-            const totalAnnualCost = totalPeriodCostWithOffer * factorAnual;
-
-            return {
-                costEnergyP1, costEnergyP2, costEnergyP3, // Individual energy costs
-                subtotalEnergy,
-                costFixedP1, costFixedP2, subtotalPotencia,
-                subtotalBasePE, // Base P+E antes del Impuesto Eléctrico
-                impuestoElectrico, baseImponible, totalIVA,
-                totalPeriodCostWithOffer, totalAnnualCost,
-                pricePotenciaP1Daily, pricePotenciaP2Daily
-            };
-        }
-        
-        // Helper para mostrar datos en la tarjeta de consumo
-        function renderConsumptionDetails(data) {
-            // ... (Lógica de renderizado omitida, sin cambios)
-            const detailsDiv = document.getElementById('user-consumption-details');
-            
-            let html = `
-                <div class="flex justify-between font-semibold text-gray-700 pb-1 border-b border-gray-200">
-                    <span>Periodo Facturado:</span>
-                    <span>${data.dias_facturados} Días (${data.fecha_inicio} - ${data.fecha_fin})</span>
-                </div>
-                <div class="text-sm space-y-1">
-                    <div class="flex justify-between pt-2"><span>Consumo Punta (P1):</span><span class="font-medium">${data.consumo_punta.toFixed(2)} kWh</span></div>
-                    <div class="flex justify-between"><span>Consumo Llano (P2):</span><span class="font-medium">${data.consumo_llano.toFixed(2)} kWh</span></div>
-                    <div class="flex justify-between"><span>Consumo Valle (P3):</span><span class="font-medium">${data.consumo_valle.toFixed(2)} kWh</span></div>
-                    <div class="flex justify-between border-t mt-2 pt-2 font-bold text-blue-600">
-                        <span>Consumo Total (Período):</span><span>${data.consumo_total.toFixed(2)} kWh</span>
-                    </div>
-                </div>
-                <div class="text-sm space-y-1 mt-4 border-t pt-2">
-                    <div class="flex justify-between"><span>Potencia Contratada P1 (Punta/Llano):</span><span class="font-medium">${data.potencia_p1_kw.toFixed(3)} kW</span></div>
-                    <div class="flex justify-between"><span>Potencia Contratada P2 (Valle):</span><span class="font-medium">${data.potencia_p2_kw.toFixed(3)} kW</span></div>
-                    <!-- FIX: Mostramos el importe total de la factura original para comparación -->
-                    <div class="flex justify-between font-bold text-red-600 border-t pt-2 mt-2">
-                        <span>IMPORTE TOTAL FACTURA ORIGINAL:</span><span>${data.importe_total_display}</span>
-                    </div>
-                </div>
-            `;
-            detailsDiv.innerHTML = html;
-        }
-
-        function renderCostBreakdown(tariff, data, costResults) {
-            // ... (Lógica de renderizado del desglose omitida, sin cambios)
-            // Se puede declarar IE_RATE aquí de nuevo si se necesita para el display, o usar el valor 0.05
-            const IE_RATE_DISPLAY = 0.05; 
-
-            const { consumo_punta, consumo_llano, consumo_valle, potencia_p1_kw, potencia_p2_kw, dias_facturados } = data;
-            const { costEnergyP1, costEnergyP2, costEnergyP3, subtotalEnergy, costFixedP1, costFixedP2, subtotalPotencia, subtotalBasePE, impuestoElectrico, baseImponible, totalIVA, totalPeriodCostWithOffer, totalAnnualCost, pricePotenciaP1Daily, pricePotenciaP2Daily } = costResults;
-
-            // Valores de ejemplo para visualización (se usan los precios de la tarifa seleccionada, no los 0.099 del usuario)
-            const priceP1DailyDisplay = (tariff.p_potencia_1 / ANNUAL_DAYS).toFixed(8); // Convertir €/kW/año a €/kW/día
-            
-            const html = `
-                <div class="space-y-3">
-                    <p class="font-bold text-gray-800 border-b pb-1">TARIFA DRK ANALIZADA: ${tariff.name}</p>
-
-                    <!-- POTENCIA -->
-                    <div class="border-b pb-2">
-                        <p class="font-semibold text-blue-700">TÉRMINO POTENCIA (${dias_facturados} DÍAS)</p>
-                        <div class="breakdown-row">
-                            <span>P1 (${potencia_p1_kw.toFixed(3)} kW)</span>
-                            <span>${potencia_p1_kw.toFixed(3)} kW x ${dias_facturados} días x ${pricePotenciaP1Daily.toFixed(8)} €/kW/día = <strong class="text-green-700">${costFixedP1.toFixed(4)} €</strong></span>
-                        </div>
-                        <div class="breakdown-row">
-                            <span>P2 (${potencia_p2_kw.toFixed(3)} kW)</span>
-                            <span>${potencia_p2_kw.toFixed(3)} kW x ${dias_facturados} días x ${pricePotenciaP2Daily.toFixed(8)} €/kW/día = <strong class="text-green-700">${costFixedP2.toFixed(4)} €</strong></span>
-                        </div>
-                        <div class="breakdown-row font-bold border-t mt-1 pt-1">
-                            <span>SUBTOTAL POTENCIA</span>
-                            <span>${subtotalPotencia.toFixed(4)} €</span>
-                        </div>
-                    </div>
-
-                    <!-- ENERGÍA -->
-                    <div class="border-b pb-2">
-                        <p class="font-semibold text-blue-700">TÉRMINO ENERGÍA (${dias_facturados} DÍAS)</p>
-                        <div class="breakdown-row">
-                            <span>E1 (Punta: ${consumo_punta.toFixed(2)} kWh)</span>
-                            <span>${consumo_punta.toFixed(2)} kWh x ${tariff.p1_price.toFixed(8)} €/kWh = ${costEnergyP1.toFixed(4)} €</span>
-                        </div>
-                        <div class="breakdown-row">
-                            <span>E2 (Llano: ${consumo_llano.toFixed(2)} kWh)</span>
-                            <span>${consumo_llano.toFixed(2)} kWh x ${tariff.p2_price.toFixed(8)} €/kWh = ${costEnergyP2.toFixed(4)} €</span>
-                        </div>
-                        <div class="breakdown-row">
-                            <span>E3 (Valle: ${consumo_valle.toFixed(2)} kWh)</span>
-                            <span>${consumo_valle.toFixed(2)} kWh x ${tariff.p3_price.toFixed(8)} €/kWh = ${costEnergyP3.toFixed(4)} €</span>
-                        </div>
-                        <div class="breakdown-row font-bold border-t mt-1 pt-1">
-                            <span>SUBTOTAL ENERGÍA</span>
-                            <span>${subtotalEnergy.toFixed(4)} €</span>
-                        </div>
-                    </div>
-
-                    <!-- IMPUESTOS Y TOTAL -->
-                    <div class="space-y-1">
-                        <div class="breakdown-row font-semibold">
-                            <span>SUBTOTAL P+E (Base de Impuesto Eléctrico)</span>
-                            <span>${subtotalBasePE.toFixed(4)} €</span>
-                        </div>
-                        <div class="breakdown-row">
-                            <span class="text-red-700">+ Impuesto Eléctrico (${(IE_RATE_DISPLAY * 100).toFixed(0)}%)</span>
-                            <span class="text-red-700">${impuestoElectrico.toFixed(4)} €</span>
-                        </div>
-                        <div class="breakdown-row font-semibold border-t mt-1 pt-1">
-                            <span>BASE IMPONIBLE (P+E + IE)</span>
-                            <span>${baseImponible.toFixed(4)} €</span>
-                        </div>
-                        <div class="breakdown-row">
-                            <span class="text-red-700">+ IVA (21%)</span>
-                            <span class="text-red-700">${totalIVA.toFixed(4)} €</span>
-                        </div>
-                    </div>
-
-                    <div class="breakdown-row font-extrabold text-lg bg-green-200 p-2 rounded-lg">
-                        <span>TOTAL FACTURA DRK (PARA ${dias_facturados} DÍAS)</span>
-                        <span>${totalPeriodCostWithOffer.toFixed(2)} €</span>
-                    </div>
-                    
-                    <div class="breakdown-row font-extrabold text-lg bg-blue-200 p-2 rounded-lg">
-                        <span>TOTAL ANUAL ESTIMADO DRK</span>
-                        <span>${totalAnnualCost.toFixed(2)} €</span>
-                    </div>
-                </div>
-            `;
-            document.getElementById('cost-breakdown').innerHTML = html;
-        }
-
-
-        function compareOffers(parsedData) {
-            // ... (Lógica de comparación omitida, sin cambios)
-            // 1. Datos reales extraídos del QR
-            const diasFacturados = parsedData.dias_facturados;
-            
-            // Factor para anualizar el coste del periodo (usado para el cálculo final de ahorro)
-            const factorAnual = ANNUAL_DAYS / diasFacturados;
-            
-            // Coste de la factura original (basado en el campo imp del QR)
-            // IMPORTANTE: Usamos el importe total del QR (imp) como referencia.
-            const originalBillTotalCost = parsedData.importe_total; 
-            const originalBillAnnualCost = originalBillTotalCost * factorAnual; // Coste Anual de referencia
-
-            document.getElementById('cups-value').textContent = parsedData.cups;
-            renderConsumptionDetails(parsedData); // Mostrar los datos extraídos
+            // Factor anualización
+            const factorAnual = ANNUAL_DAYS / data.dias_facturados;
+            const originalBillAnnual = data.importe_total * factorAnual;
 
             let bestOffer = null;
             let minAnnualCost = Infinity;
-            let bestOfferCostDetails = null;
+            let bestBreakdown = null;
 
-            const comparisonDetails = document.getElementById('comparison-details');
-            comparisonDetails.innerHTML = ''; 
-            
-            // Comprobación esencial: si no hay tarifas, no se puede comparar
-            if (currentTariffs.length === 0) {
-                document.getElementById('best-offer-name').textContent = "ERROR: No hay tarifas cargadas.";
-                document.getElementById('best-offer-desc').textContent = "Por favor, cargue un archivo CSV con ofertas de DRK.";
-                document.getElementById('savings-estimate').textContent = `N/A`;
-                document.getElementById('cost-breakdown').innerHTML = '<p class="text-red-500 text-center">Debe cargar tarifas válidas antes de comparar.</p>';
-                showView('results-view');
-                return;
-            }
+            currentTariffs.forEach(t => {
+                // Cálculo Potencia
+                const priceP1Day = t.p_potencia_1 / ANNUAL_DAYS;
+                const priceP2Day = t.p_potencia_2 / ANNUAL_DAYS;
+                
+                const costP1 = data.potencia_p1_kw * data.dias_facturados * priceP1Day;
+                const costP2 = data.potencia_p2_kw * data.dias_facturados * priceP2Day;
+                const subPower = costP1 + costP2;
 
-            currentTariffs.forEach(tariff => {
-                // Se realiza el cálculo completo de la oferta
-                const costResults = calculateOfferCost(tariff, parsedData);
-                const totalAnnualCost = costResults.totalAnnualCost;
+                // Cálculo Energía
+                const costE1 = data.consumo_punta * t.p1_price;
+                const costE2 = data.consumo_llano * t.p2_price;
+                const costE3 = data.consumo_valle * t.p3_price;
+                const subEnergy = costE1 + costE2 + costE3;
 
-                tariff.annualCost = totalAnnualCost;
+                // Impuestos
+                const subBase = subPower + subEnergy;
+                const costIE = subBase * IE_RATE;
+                const baseImp = subBase + costIE;
+                const costIVA = baseImp * IVA_RATE;
+                
+                const totalPeriod = baseImp + costIVA;
+                const totalAnnual = totalPeriod * factorAnual;
 
-                // 2. Determinar la mejor oferta
-                if (totalAnnualCost < minAnnualCost) {
-                    minAnnualCost = totalAnnualCost;
-                    bestOffer = tariff;
-                    bestOfferCostDetails = costResults; // Guardar el desglose de la mejor oferta
+                if (totalAnnual < minAnnualCost) {
+                    minAnnualCost = totalAnnual;
+                    bestOffer = t;
+                    bestBreakdown = {
+                        ...data, costP1, costP2, subPower, costE1, costE2, costE3, subEnergy,
+                        subBase, costIE, baseImp, costIVA, totalPeriod, totalAnnual,
+                        priceP1Day, priceP2Day
+                    };
                 }
-
-                // 3. Renderizar el detalle
-                const detailHtml = `
-                    <div class="p-3 border rounded-lg shadow-sm ${tariff === bestOffer ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
-                        <p class="font-bold ${tariff === bestOffer ? 'text-green-700' : 'text-gray-700'}">${tariff.name}</p>
-                        <p class="text-xs text-gray-500">
-                            Precios Energía (P1/P2/P3): ${tariff.p1_price.toFixed(3)} / ${tariff.p2_price.toFixed(3)} / ${tariff.p3_price.toFixed(3)} €/kWh
-                        </p>
-                        <p class="text-xs text-gray-500">
-                            Precios Potencia (P1/P2): ${tariff.p_potencia_1.toFixed(2)} / ${tariff.p_potencia_2.toFixed(2)} €/kW/año
-                        </p>
-                        <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est. con IVA)</p>
-                    </div>
-                `;
-                comparisonDetails.innerHTML += detailHtml;
             });
 
-            // Mostrar el resultado final
-            if (bestOffer) {
-                // Cálculo de ahorro: (Coste Anual Actual Simulado) - (Coste Anual de la Mejor Oferta)
-                const savings = originalBillAnnualCost - bestOffer.annualCost;
-                
-                document.getElementById('best-offer-name').textContent = bestOffer.name;
-                document.getElementById('best-offer-desc').textContent = bestOffer.description;
-                document.getElementById('savings-estimate').textContent = `${savings.toFixed(2)} €`;
+            if (!bestOffer) return window.showErrorModal("No se encontraron tarifas compatibles.");
 
-                // Renderizar el desglose de la mejor oferta
-                renderCostBreakdown(bestOffer, parsedData, bestOfferCostDetails);
+            const savings = originalBillAnnual - minAnnualCost;
 
-            } else {
-                   document.getElementById('best-offer-name').textContent = "No se encontró una oferta compatible.";
-                   document.getElementById('best-offer-desc').textContent = "Contacta con un asesor para un estudio personalizado.";
-                   document.getElementById('savings-estimate').textContent = `0.00 €`;
-                   document.getElementById('cost-breakdown').innerHTML = '<p class="text-gray-500 text-center">No hay desglose disponible sin ofertas compatibles.</p>';
-            }
-
+            // RENDERIZADO DE RESULTADOS
+            renderResultsUI(bestOffer, bestBreakdown, savings, originalBillAnnual);
             showView('results-view');
         }
 
-        // --- Event Listeners y Inicialización ---
+        function renderResultsUI(offer, bd, savings, oldAnnual) {
+            // Formateador de moneda
+            const eur = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+            const num = (n, d=2) => new Intl.NumberFormat('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 
+            // 1. Datos básicos
+            els.cupsValue.textContent = bd.cups;
+            els.bestOfferName.textContent = offer.name;
+            els.bestOfferDesc.textContent = offer.description;
+            
+            // 2. Bloque Comparativo (EL NUEVO REQUISITO)
+            els.savingsEstimate.textContent = eur(savings);
+            els.savingsEstimate.className = savings >= 0 ? "text-5xl font-black text-green-500 tracking-tight" : "text-5xl font-black text-red-500 tracking-tight";
+            
+            els.oldAnnualCostDisplay.textContent = eur(oldAnnual);
+            els.newAnnualCostDisplay.textContent = eur(bd.totalAnnual);
+
+            // 3. Detalles de Consumo
+            els.userConsumptionDetails.innerHTML = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div><p class="text-xs text-slate-500">Periodo</p><p class="font-bold text-slate-700">${bd.dias_facturados} días</p></div>
+                    <div><p class="text-xs text-slate-500">Fechas</p><p class="font-bold text-slate-700">${bd.fechas}</p></div>
+                    <div class="col-span-2 border-t pt-2 mt-2">
+                        <div class="flex justify-between text-xs mb-1"><span>E1 (Punta)</span><span class="font-mono">${num(bd.consumo_punta,0)} kWh</span></div>
+                        <div class="flex justify-between text-xs mb-1"><span>E2 (Llano)</span><span class="font-mono">${num(bd.consumo_llano,0)} kWh</span></div>
+                        <div class="flex justify-between text-xs mb-1"><span>E3 (Valle)</span><span class="font-mono">${num(bd.consumo_valle,0)} kWh</span></div>
+                        <div class="flex justify-between font-bold text-drk-600 mt-1"><span>Total Energía</span><span>${num(bd.consumo_total,0)} kWh</span></div>
+                    </div>
+                </div>
+            `;
+
+            // 4. Desglose Tipo Ticket
+            els.costBreakdown.innerHTML = `
+                <div class="bg-white p-6 font-mono text-xs md:text-sm text-slate-600 leading-relaxed">
+                    <div class="text-center border-b-2 border-dashed border-slate-300 pb-4 mb-4">
+                        <h4 class="font-bold text-lg text-slate-800 uppercase">${offer.name}</h4>
+                        <p>Simulación para ${bd.dias_facturados} días</p>
+                    </div>
+
+                    <!-- Potencia -->
+                    <div class="mb-4">
+                        <p class="font-bold text-slate-800 mb-1">TÉRMINO POTENCIA</p>
+                        <div class="flex justify-between">
+                            <span>P1 (${num(bd.potencia_p1_kw,2)} kW x ${bd.dias_facturados}d x ${num(bd.priceP1Day,6)})</span>
+                            <span>${num(bd.costP1,2)} €</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>P2 (${num(bd.potencia_p2_kw,2)} kW x ${bd.dias_facturados}d x ${num(bd.priceP2Day,6)})</span>
+                            <span>${num(bd.costP2,2)} €</span>
+                        </div>
+                    </div>
+
+                    <!-- Energía -->
+                    <div class="mb-4">
+                        <p class="font-bold text-slate-800 mb-1">TÉRMINO ENERGÍA</p>
+                        <div class="flex justify-between"><span>E1 (${num(bd.consumo_punta,0)} kWh x ${num(offer.p1_price,6)})</span><span>${num(bd.costE1,2)} €</span></div>
+                        <div class="flex justify-between"><span>E2 (${num(bd.consumo_llano,0)} kWh x ${num(offer.p2_price,6)})</span><span>${num(bd.costE2,2)} €</span></div>
+                        <div class="flex justify-between"><span>E3 (${num(bd.consumo_valle,0)} kWh x ${num(offer.p3_price,6)})</span><span>${num(bd.costE3,2)} €</span></div>
+                    </div>
+
+                    <!-- Impuestos -->
+                    <div class="border-t border-slate-200 pt-2 mb-4">
+                        <div class="flex justify-between font-bold text-slate-800"><span>SUBTOTAL (P+E)</span><span>${num(bd.subBase,2)} €</span></div>
+                        <div class="flex justify-between"><span>Impuesto Eléc. (5%)</span><span>${num(bd.costIE,2)} €</span></div>
+                        <div class="flex justify-between font-bold mt-1"><span>BASE IMPONIBLE</span><span>${num(bd.baseImp,2)} €</span></div>
+                        <div class="flex justify-between"><span>IVA (21%)</span><span>${num(bd.costIVA,2)} €</span></div>
+                    </div>
+
+                    <!-- Total -->
+                    <div class="bg-slate-800 text-white p-3 rounded-lg flex justify-between items-center text-lg font-bold">
+                        <span>TOTAL PERIODO</span>
+                        <span>${num(bd.totalPeriod,2)} €</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // INICIALIZACIÓN
         function initApp() {
-            // FIX: Cargar tarifas guardadas antes de actualizar el contador
+            // 1. Cargar persistencia al inicio
             currentTariffs = loadTariffsFromStorage();
             
-            setLoading(false, 'Listo para escanear');
-            updateTariffCount(); // Ahora actualiza el contador con las tarifas persistentes
-            
-            // FIX: Asociación de eventos de botones
-            loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
-            csvFileInput.addEventListener('change', loadTariffsFromFile);
-            resetTariffsBtn.addEventListener('click', resetTariffs); 
-            
-            startScanBtn.addEventListener('click', startScanner);
-            stopScanBtn.addEventListener('click', stopScanner);
-            capturePhotoBtn.addEventListener('click', capturePhoto);
+            // 2. Actualizar UI
+            updateTariffCount();
+            els.loadingStatus.classList.add('hidden');
 
-            simulateScanBtn.addEventListener('click', () => {
-                const rawText = cupsInput.value.trim();
-                if (rawText.length > 10) {
-                    if (currentTariffs.length === 0) {
-                           showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV.");
-                           return;
-                    }
-                    handleQRRead(rawText); 
-                } else {
-                    showErrorModal("Por favor, introduce una cadena CNMC válida o un CUPS.");
-                }
+            // 3. Listeners
+            els.loadTariffsBtn.addEventListener('click', () => els.csvFileInput.click());
+            els.csvFileInput.addEventListener('change', loadTariffsFromFile);
+            els.resetTariffsBtn.addEventListener('click', resetTariffs);
+            els.startScanBtn.addEventListener('click', startScanner);
+            els.stopScanBtn.addEventListener('click', stopScanner);
+            els.capturePhotoBtn.addEventListener('click', capturePhoto);
+
+            els.simulateScanBtn.addEventListener('click', () => {
+                const val = els.cupsInput.value.trim();
+                if (val.length < 10) return window.showErrorModal("Datos inválidos");
+                if (currentTariffs.length === 0) return window.showErrorModal("Cargue tarifas primero.");
+                handleQRRead(val);
             });
             
-            console.log("Aplicación inicializada. Usando jsQR para el escaneo.");
+            console.log("App iniciada. Tarifas en memoria:", currentTariffs.length);
         }
-        
+
         window.onload = initApp;
+
     </script>
 </body>
 </html>
