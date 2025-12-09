@@ -771,6 +771,9 @@
         }
 
         function renderCostBreakdown(tariff, data, costResults) {
+            // Se puede declarar IE_RATE aquí de nuevo si se necesita para el display, o usar el valor 0.05
+            const IE_RATE_DISPLAY = 0.05; 
+
             const { consumo_punta, consumo_llano, consumo_valle, potencia_p1_kw, potencia_p2_kw, dias_facturados } = data;
             const { costEnergyP1, costEnergyP2, costEnergyP3, subtotalEnergy, costFixedP1, costFixedP2, subtotalPotencia, subtotalBasePE, impuestoElectrico, baseImponible, totalIVA, totalPeriodCostWithOffer, totalAnnualCost, pricePotenciaP1Daily, pricePotenciaP2Daily } = costResults;
 
@@ -826,7 +829,7 @@
                             <span>${subtotalBasePE.toFixed(4)} €</span>
                         </div>
                         <div class="breakdown-row">
-                            <span class="text-red-700">+ Impuesto Eléctrico (${(IE_RATE * 100).toFixed(0)}%)</span>
+                            <span class="text-red-700">+ Impuesto Eléctrico (${(IE_RATE_DISPLAY * 100).toFixed(0)}%)</span>
                             <span class="text-red-700">${impuestoElectrico.toFixed(4)} €</span>
                         </div>
                         <div class="breakdown-row font-semibold border-t mt-1 pt-1">
@@ -834,7 +837,7 @@
                             <span>${baseImponible.toFixed(4)} €</span>
                         </div>
                         <div class="breakdown-row">
-                            <span class="text-red-700">+ IVA (${(21 * 100/100).toFixed(0)}%)</span> <!-- Usamos 21% directamente aquí para el display -->
+                            <span class="text-red-700">+ IVA (21%)</span>
                             <span class="text-red-700">${totalIVA.toFixed(4)} €</span>
                         </div>
                     </div>
