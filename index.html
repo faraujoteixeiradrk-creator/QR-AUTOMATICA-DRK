@@ -234,55 +234,17 @@
         
         // Constantes de cálculo
         const ANNUAL_DAYS = 365; // Se necesita globalmente para la conversión en parseCSV
+        const LOCAL_STORAGE_KEY = 'drk_loaded_tariffs'; // Clave para guardar en localStorage
         
         // ==============================================================================
         //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA (NO UTILIZADAS AL INICIO) !!!
         // ==============================================================================
         const defaultTariffs = [
-            {
-                name: "DRK Oferta Estrella (EJEMPLO - Ahorro medio)",
-                description: "La mejor para clientes con consumo diurno.",
-                p1_price: 0.15, // Precio energía Punta (€/kWh)
-                p2_price: 0.10, // Precio energía Llano (€/kWh)
-                p3_price: 0.05, // Precio energía Valle (€/kWh)
-                p_potencia_1: 40.0, // Precio Potencia P1 (€/kW/año)
-                p_potencia_2: 20.0, // Precio Potencia P2 (€/kW/año)
-                cups_match: ["2.0TD"],
-            },
-            {
-                name: "DRK Tarifa Plana 0.099 (EJEMPLO - Tu Precio Base)",
-                description: "Tarifa usada para validar el cálculo base (0.099 €/kW/día).",
-                p1_price: 0.099, 
-                p2_price: 0.099, 
-                p3_price: 0.099, 
-                p_potencia_1: 36.135, // 0.099 €/kW/día * 365 = 36.135 €/kW/año
-                p_potencia_2: 36.135, 
-                cups_match: ["2.0TD"],
-            },
-            {
-                name: "DRK Ahorro Nocturno (EJEMPLO)",
-                description: "Ideal para cargar vehículos eléctricos o consumo nocturno.",
-                p1_price: 0.20,
-                p2_price: 0.12,
-                p3_price: 0.02,
-                p_potencia_1: 45.0,
-                p_potencia_2: 22.0,
-                cups_match: ["2.0TD"],
-            },
-            {
-                name: "DRK Precio Fijo Garantizado (EJEMPLO)",
-                description: "Estabilidad 24h al mejor precio.",
-                p1_price: 0.12,
-                p2_price: 0.12,
-                p3_price: 0.12,
-                p_potencia_1: 38.0,
-                p_potencia_2: 19.0,
-                cups_match: ["2.0TD"],
-            },
+            // Lista de tarifas de ejemplo omitida
         ];
         // ==============================================================================
 
-        let currentTariffs = []; // FIX: Inicializado como vacío para que no haya tarifas precargadas al recargar.
+        let currentTariffs = []; // Se inicializará desde localStorage o se mantendrá vacío
         let scannerRunning = false;
         
         // Referencias a los elementos del DOM
@@ -302,26 +264,49 @@
         const resetTariffsBtn = document.getElementById('reset-tariffs-btn'); 
         const tariffCountSpan = document.getElementById('tariff-count');
 
-        // Variables para jsQR (cámara y procesamiento)
-        let stream = null;
-        let video = null;
-        let canvas = null;
-        let canvasCtx = null;
-        let animationFrameId = null;
 
+        // --- Funciones de Persistencia ---
 
+        function loadTariffsFromStorage() {
+            try {
+                const storedTariffs = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (storedTariffs) {
+                    return JSON.parse(storedTariffs);
+                }
+            } catch (e) {
+                console.error("Error al cargar tarifas de localStorage:", e);
+                localStorage.removeItem(LOCAL_STORAGE_KEY); // Limpiar datos corruptos
+            }
+            return [];
+        }
+
+        function saveTariffsToStorage() {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentTariffs));
+            } catch (e) {
+                console.error("Error al guardar tarifas en localStorage:", e);
+            }
+        }
+        
         // --- Funciones de Utilidad y UI ---
         
         function updateTariffCount() {
             tariffCountSpan.textContent = `${currentTariffs.length} tarifas`;
+            // Opcionalmente, deshabilitar escaneo si no hay tarifas
+            if (currentTariffs.length === 0) {
+                 startScanBtn.disabled = true;
+            } else {
+                 startScanBtn.disabled = false;
+            }
         }
 
         // FUNCIÓN PARA RESTABLECER LAS TARIFAS (VACIAR MEMORIA)
         function resetTariffs() {
             currentTariffs = []; // Vacía la memoria por completo
+            localStorage.removeItem(LOCAL_STORAGE_KEY); // ELIMINA DEL ALMACENAMIENTO PERSISTENTE
             updateTariffCount();
             showErrorModal("¡Memoria de tarifas vaciada! Ahora debe cargar un nuevo archivo CSV para comparar.");
-            console.log("Tarifas restablecidas. Lista vacía.");
+            console.log("Tarifas restablecidas. Lista vacía y localStorage limpio.");
         }
         
         function showView(viewId) {
@@ -350,7 +335,10 @@
                 loadingStatus.classList.remove('hidden');
                 simulationInput.classList.add('hidden');
             } else {
-                startScanBtn.disabled = false;
+                // Re-habilitar si hay tarifas cargadas
+                if (currentTariffs.length > 0) {
+                     startScanBtn.disabled = false;
+                }
                 startScanBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Iniciar Escaneo de QR en Vivo`;
                 loadingStatus.classList.add('hidden');
                 // Mostrar simulación si no estamos cargando
@@ -436,6 +424,7 @@
                     }
                     
                     currentTariffs = loadedTariffs;
+                    saveTariffsToStorage(); // GUARDAR EN LOCAL STORAGE
                     updateTariffCount();
                     showErrorModal(`¡Carga Exitosa! Se han cargado ${currentTariffs.length} tarifas nuevas.`);
                     console.log("Tarifas cargadas desde CSV:", currentTariffs);
@@ -547,7 +536,14 @@
 
         // --- Lógica de Escaneo en Vivo (jsQR) ---
         
+        let stream = null;
+        let video = null;
+        let canvas = null;
+        let canvasCtx = null;
+        let animationFrameId = null;
+
         function scanLoop() {
+            // ... (Lógica del escaneo en vivo omitida, sin cambios)
             if (!scannerRunning || !video || video.readyState !== video.HAVE_ENOUGH_DATA) {
                 animationFrameId = requestAnimationFrame(scanLoop);
                 return;
@@ -586,6 +582,7 @@
             video.autoplay = true;
             video.playsInline = true; 
             canvas = document.createElement('canvas');
+            // ... (Lógica de la cámara y escaneo omitida, sin cambios)
             canvasCtx = canvas.getContext('2d');
             
             interactiveViewport.innerHTML = '';
@@ -611,6 +608,7 @@
         }
 
         function stopScanner() {
+            // ... (Lógica para detener el escaneo omitida, sin cambios)
             if (scannerRunning) {
                 scannerRunning = false;
                 if (animationFrameId) {
@@ -633,6 +631,7 @@
 
         // --- LÓGICA DE CAPTURA MANUAL DE FOTO ---
         function capturePhoto() {
+            // ... (Lógica de captura de foto omitida, sin cambios)
             if (!scannerRunning || !video || video.readyState !== video.HAVE_ENOUGH_DATA) {
                 showErrorModal("El feed de la cámara no está listo para capturar. Inicie el escaneo primero.");
                 return;
@@ -656,6 +655,7 @@
         // --- FUNCIÓN DE ENTRADA DE DATOS (QR o Manual) ---
 
         function handleQRRead(rawCode) {
+            // ... (Lógica de lectura de QR omitida, sin cambios)
             let rawText = rawCode.trim();
             
             // Si la cadena parece una URL (al escanear desde un documento PDF)
@@ -743,6 +743,7 @@
         
         // Helper para mostrar datos en la tarjeta de consumo
         function renderConsumptionDetails(data) {
+            // ... (Lógica de renderizado omitida, sin cambios)
             const detailsDiv = document.getElementById('user-consumption-details');
             
             let html = `
@@ -771,6 +772,7 @@
         }
 
         function renderCostBreakdown(tariff, data, costResults) {
+            // ... (Lógica de renderizado del desglose omitida, sin cambios)
             // Se puede declarar IE_RATE aquí de nuevo si se necesita para el display, o usar el valor 0.05
             const IE_RATE_DISPLAY = 0.05; 
 
@@ -858,6 +860,7 @@
 
 
         function compareOffers(parsedData) {
+            // ... (Lógica de comparación omitida, sin cambios)
             // 1. Datos reales extraídos del QR
             const diasFacturados = parsedData.dias_facturados;
             
@@ -944,8 +947,11 @@
         // --- Event Listeners y Inicialización ---
 
         function initApp() {
+            // FIX: Cargar tarifas guardadas antes de actualizar el contador
+            currentTariffs = loadTariffsFromStorage();
+            
             setLoading(false, 'Listo para escanear');
-            updateTariffCount();
+            updateTariffCount(); // Ahora actualiza el contador con las tarifas persistentes
             
             // FIX: Asociación de eventos de botones
             loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
