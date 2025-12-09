@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -38,8 +38,8 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-    <!-- QuaggaJS CDN para escaneo QR -->
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <!-- QuaggaJS CDN para escaneo QR (FIX: Cambiada a versión 0.12.0 para mayor estabilidad) -->
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.0/dist/quagga.min.js"></script>
 </head>
 <body class="p-4 flex flex-col min-h-screen">
 
@@ -424,8 +424,8 @@
             }
 
             Quagga.init({
-                numOfWorkers: 0, // Deshabilita workers para prevenir el TypeError
-                locate: false,   // Deshabilita la localización compleja para mayor estabilidad
+                numOfWorkers: 0, // CRÍTICO: Deshabilita workers para prevenir el TypeError
+                locate: false,   // CRÍTICO: Deshabilita la localización compleja que puede fallar
                 inputStream: {
                     name: "Live",
                     type: "LiveStream",
