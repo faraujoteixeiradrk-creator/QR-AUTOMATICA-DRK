@@ -229,10 +229,10 @@
         // Referencias a los elementos del DOM
         const initialView = document.getElementById('initial-view');
         const resultsView = document.getElementById('results-view');
-        const scannerView = document.getElementById('scanner-view'); // Reintroducido
-        const interactiveViewport = document.getElementById('interactive'); // Reintroducido
+        const scannerView = document.getElementById('scanner-view'); 
+        const interactiveViewport = document.getElementById('interactive'); 
         const startScanBtn = document.getElementById('start-scan-btn');
-        const stopScanBtn = document.getElementById('stop-scan-btn'); // Reintroducido
+        const stopScanBtn = document.getElementById('stop-scan-btn'); 
         const loadingStatus = document.getElementById('loading-status');
         const simulationInput = document.getElementById('simulation-input');
         const simulateScanBtn = document.getElementById('simulate-scan-btn');
@@ -251,7 +251,7 @@
         function showView(viewId) {
             initialView.classList.add('hidden');
             resultsView.classList.add('hidden');
-            scannerView.classList.add('hidden'); // Ocultar vista de escáner
+            scannerView.classList.add('hidden'); 
             document.getElementById(viewId).classList.remove('hidden');
         }
 
@@ -294,16 +294,25 @@
             const lines = text.trim().split('\n');
             if (lines.length < 2) return [];
 
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            let rawHeaders = lines[0].trim();
+            let delimiter = ',';
+            // Detección de delimitador: Si no hay 7 campos con la coma, intenta con punto y coma.
+            if (rawHeaders.split(',').length < 7 && rawHeaders.split(';').length >= 7) {
+                delimiter = ';';
+            }
+            
+            const headers = rawHeaders.split(delimiter).map(h => h.trim().toLowerCase());
             const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'p_potencia_1', 'p_potencia_2'];
             
+            // Verificación estricta de las cabeceras requeridas
             if (!requiredHeaders.every(h => headers.includes(h))) {
                 throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2.");
             }
 
             const newTariffs = [];
             for (let i = 1; i < lines.length; i++) {
-                const values = lines[i].split(',');
+                // Usar el delimitador detectado
+                const values = lines[i].split(delimiter); 
                 if (values.length !== headers.length) continue; 
 
                 const tariff = { cups_match: ["2.0TD"] };
@@ -313,6 +322,7 @@
                     const value = values[j].trim();
                     
                     if (header.includes('price') || header.includes('potencia')) { 
+                        // Intentar convertir a número (usando punto decimal)
                         const numValue = parseFloat(value.replace(',', '.'));
                         if (isNaN(numValue)) {
                             console.warn(`Valor no numérico en columna ${header} en la línea ${i + 1}. Fila ignorada.`);
