@@ -39,6 +39,12 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.875rem; /* text-sm */
+        }
     </style>
     <!-- jsQR (estable y sin problemas de Web Workers) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -93,7 +99,7 @@
             <!-- Simulador para pruebas -->
             <div id="simulation-input" class="mt-4 p-4 bg-gray-100 rounded-lg">
                 <p class="text-sm font-medium text-gray-600 mb-2">Alternativa: Ingrese CNMC QR data o CUPS manualmente</p>
-                <input type="text" id="cups-input" placeholder="Pegue aquí la cadena CNMC o un CUPS (Ej: cups=ES...)" value="cups=ES0031100000000000AA0F&iniF=01/01/2024&finF=31/01/2024&cfP1=100&cfP2=150&cfP3=250&pP1=4.6&pP2=4.6&imp=50.00" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs">
+                <input type="text" id="cups-input" placeholder="Pegue aquí la cadena CNMC (Ej: cups=ES...)" value="cups=ES0031100000000000AA0F&iniF=18/09/2025&finF=20/10/2025&cfP1=458&cfP2=431&cfP3=34&pP1=4.4&pP2=4.4&imp=51.33" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs">
                 <button id="simulate-scan-btn" class="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition duration-300">
                     Comparar con Datos Manuales
                 </button>
@@ -145,6 +151,11 @@
                 <!-- Se llenará con la comparación de tarifas -->
             </div>
 
+            <h3 class="text-xl font-semibold text-gray-700 mt-6 mb-3 border-b pb-2">Desglose del Coste de la Mejor Oferta (Periodo de Factura)</h3>
+            <div id="cost-breakdown" class="space-y-4 bg-gray-100 p-4 rounded-lg">
+                 <!-- Aquí se mostrará el desglose detallado del cálculo de la mejor oferta. -->
+            </div>
+
             <button onclick="resetApp()" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300">
                 Hacer Otra Comparación
             </button>
@@ -176,11 +187,12 @@
                     <li>`p1_price`: Precio de la energía en periodo Punta (€/kWh). **(Número)**</li>
                     <li>`p2_price`: Precio de la energía en periodo Llano (€/kWh). **(Número)**</li>
                     <li>`p3_price`: Precio de la energía en periodo Valle (€/kWh). **(Número)**</li>
-                    <li>`p_potencia_1`: Precio de la potencia P1 (para periodos Punta/Llano, en €/kW/año). **(Número)**</li>
-                    <li>`p_potencia_2`: Precio de la potencia P2 (para periodo Valle, en €/kW/año). **(Número)**</li>
+                    <li>`p_potencia_1`: Precio de la potencia P1 (se espera €/kW/año). **(Número)**</li>
+                    <li>`p_potencia_2`: Precio de la potencia P2 (se espera €/kW/año). **(Número)**</li>
                 </ul>
 
-                <p class="text-sm text-red-500 mt-4">Asegúrese de que los precios usen el **punto** como separador decimal (ej: `0.125`).</p>
+                <p class="text-sm text-red-500 mt-4">**NOTA IMPORTANTE:** Si sube un precio de potencia bajo (ej: `0.099`), el sistema lo convertirá automáticamente a **precio ANUAL** (x365) para asegurar la precisión del cálculo por día.</p>
+                <p class="text-sm text-red-500 mt-2">Asegúrese de que los precios usen el **punto** como separador decimal (ej: `0.125`).</p>
 
                 <button onclick="document.getElementById('tariff-guide-modal').classList.add('hidden');" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg">Cerrar</button>
             </div>
@@ -219,15 +231,26 @@
         // ==============================================================================
         //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA !!!
         // ==============================================================================
+        // NOTA: Los precios de potencia aquí están en €/kW/año.
         const defaultTariffs = [
             {
-                name: "DRK Oferta Estrella (EJEMPLO)",
+                name: "DRK Oferta Estrella (EJEMPLO - Ahorro medio)",
                 description: "La mejor para clientes con consumo diurno.",
                 p1_price: 0.15, // Precio energía Punta (€/kWh)
                 p2_price: 0.10, // Precio energía Llano (€/kWh)
                 p3_price: 0.05, // Precio energía Valle (€/kWh)
                 p_potencia_1: 40.0, // Precio Potencia P1 (€/kW/año)
                 p_potencia_2: 20.0, // Precio Potencia P2 (€/kW/año)
+                cups_match: ["2.0TD"],
+            },
+            {
+                name: "DRK Tarifa Plana 0.099 (EJEMPLO - Tu Precio Base)",
+                description: "Tarifa usada para validar el cálculo base (0.099 €/kW/día).",
+                p1_price: 0.099, 
+                p2_price: 0.099, 
+                p3_price: 0.099, 
+                p_potencia_1: 36.135, // 0.099 €/kW/día * 365 = 36.135 €/kW/año
+                p_potencia_2: 36.135, 
                 cups_match: ["2.0TD"],
             },
             {
@@ -248,16 +271,6 @@
                 p3_price: 0.12,
                 p_potencia_1: 38.0,
                 p_potencia_2: 19.0,
-                cups_match: ["2.0TD"],
-            },
-            {
-                name: "DRK Tarifa Súper Valle (EJEMPLO)",
-                description: "Precios muy bajos en el periodo valle.",
-                p1_price: 0.18,
-                p2_price: 0.14,
-                p3_price: 0.01,
-                p_potencia_1: 42.0,
-                p_potencia_2: 21.0,
                 cups_match: ["2.0TD"],
             },
         ];
@@ -288,7 +301,6 @@
         let canvas = null;
         let canvasCtx = null;
         let animationFrameId = null;
-        let billDays = 30; // Días de facturación (se calculará en la comparación)
 
 
         // --- Funciones de Utilidad y UI ---
@@ -338,7 +350,6 @@
         };
 
         // --- Lógica de Carga de Archivo CSV ---
-        // (Mantenida como en la versión anterior)
 
         function parseCSV(text) {
             const lines = text.trim().split('\n');
@@ -374,7 +385,16 @@
                             console.warn(`Valor no numérico en columna ${header} en la línea ${i + 1}. Fila ignorada.`);
                             continue; 
                         }
-                        tariff[header] = numValue;
+
+                        // FIX: Si el precio de potencia es menor que 1.0, se asume que es €/kW/día y se convierte a €/kW/año
+                        if (header.includes('potencia') && numValue < 1.0 && numValue > 0) {
+                            // Convertir €/kW/día (ej: 0.099) a €/kW/año (ej: 36.135)
+                            tariff[header] = numValue * ANNUAL_DAYS;
+                            console.warn(`[CSV] Precio de potencia '${header}' (${numValue.toFixed(4)}) detectado como diario. Convertido a anual: ${tariff[header].toFixed(4)}.`);
+                        } else {
+                            // Guardar precio de energía (€/kWh) o precio de potencia (€/kW/año)
+                            tariff[header] = numValue;
+                        }
                     } else {
                         tariff[header] = value;
                     }
@@ -417,18 +437,46 @@
         // --- PARSER DE CÓDIGO QR CNMC (Adaptado de la lógica del usuario) ---
 
         function dateDiffInDays(date1, date2) {
-            const dt1 = new Date(date1.split('/').reverse().join('-')); // Convierte DD/MM/YYYY a YYYY-MM-DD
-            const dt2 = new Date(date2.split('/').reverse().join('-'));
-            const diffTime = Math.abs(dt2 - dt1);
-            // Sumar 1 día para incluir el día de inicio
+            // Convierte la cadena de fecha (DD/MM/YYYY o YYYY-MM-DD) a objeto Date
+            const parseDate = (dateStr) => {
+                if (!dateStr || dateStr.length !== 10) return null;
+
+                let parts;
+                if (dateStr.includes('/')) {
+                    // Formato CNMC QR: DD/MM/YYYY
+                    parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        // Date(YYYY, MM-1, DD)
+                        return new Date(parts[2], parts[1] - 1, parts[0]);
+                    }
+                } else if (dateStr.includes('-')) {
+                    // FIX: Formato Manual/ISO: YYYY-MM-DD
+                    parts = dateStr.split('-');
+                    if (parts.length === 3) {
+                        // Date(YYYY, MM-1, DD)
+                        return new Date(parts[0], parts[1] - 1, parts[2]);
+                    }
+                }
+                return null;
+            };
+
+            const dt1 = parseDate(date1);
+            const dt2 = parseDate(date2);
+
+            if (!dt1 || !dt2) return 0;
+            
+            // Cálculo de diferencia de días inclusiva
+            const diffTime = Math.abs(dt2.getTime() - dt1.getTime());
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
         }
 
         function parseQR(text) {
             const params = {};
+            // Reemplazar , por . en valores numéricos antes de parsear si es necesario,
+            // aunque CNMC QR utiliza punto decimal. Aseguramos el reemplazo por si acaso.
             text.split("&").forEach(pair => {
                 const [key, value] = pair.split("=");
-                params[key] = decodeURIComponent(value || "");
+                params[key] = decodeURIComponent(value || "").replace(',', '.');
             });
             
             // Consumos (convertir a número, usando 0 como fallback)
@@ -437,9 +485,12 @@
             const cfP3 = parseFloat(params.cfP3 || 0);
             const consumoTotal = cfP1 + cfP2 + cfP3;
 
-            // Potencias (convertir a número, usando 0 como fallback)
+            // Potencias Contratadas (pP1 y pP2 son las potencias, no los precios)
             const pP1 = parseFloat(params.pP1 || 0); // Potencia Contratada P1 (Punta/Llano)
             const pP2 = parseFloat(params.pP2 || 0); // Potencia Contratada P2 (Valle)
+            
+            // Importe Total de la factura (imp)
+            const imp = parseFloat(params.imp || 0);
 
             // Fechas
             const iniF = params.iniF || '';
@@ -447,6 +498,7 @@
             let diasFacturados = 0;
             if (iniF && finF) {
                 try {
+                    // El formato de fecha en el QR es DD/MM/YYYY
                     diasFacturados = dateDiffInDays(iniF, finF);
                 } catch (e) {
                     console.error("Error calculando días:", e);
@@ -470,7 +522,8 @@
                 // Otros datos para mostrar
                 fecha_inicio: iniF,
                 fecha_fin: finF,
-                importe_total: parseFloat(params.imp || 0).toFixed(2) + " €",
+                importe_total: imp, // Usamos el número para los cálculos
+                importe_total_display: imp.toFixed(2) + " €", // Para mostrar en la UI
                 codigo_postal: params.cp || '-',
                 
                 raw_data: params
@@ -603,17 +656,76 @@
 
             const parsedData = parseQR(rawText);
 
-            if (parsedData.cups.includes('NO ENCONTRADO') || parsedData.consumo_total === 0) {
-                showErrorModal(`El código QR no contiene datos válidos de CUPS o consumo. Intente de nuevo. Consumo total detectado: ${parsedData.consumo_total}`);
-                // Si falla, volvemos a la vista inicial y mostramos el error
+            if (parsedData.cups.includes('NO ENCONTRADO') || parsedData.dias_facturados === 0) {
+                showErrorModal(`El código QR no contiene datos válidos de CUPS o el periodo de facturación es inválido. Días detectados: ${parsedData.dias_facturados}`);
                 showView('initial-view');
                 return;
             }
             
+            // Añadir el importe total de la factura extraído a la tarjeta de consumo
+            document.getElementById('user-consumption-details').setAttribute('data-original-cost', parsedData.importe_total);
+
             compareOffers(parsedData);
         }
 
         // --- Lógica de Comparación de Tarifas ---
+        
+        // Constantes de cálculo
+        const IVA_RATE = 0.21;
+        const IE_RATE = 0.05; // Impuesto Eléctrico (5%)
+        const ANNUAL_DAYS = 365;
+
+        // Función que realiza el cálculo de costes para UNA oferta y el periodo de la factura.
+        function calculateOfferCost(tariff, data) {
+            const { dias_facturados, consumo_punta, consumo_llano, consumo_valle, potencia_p1_kw, potencia_p2_kw } = data;
+
+            // --- TÉRMINO ENERGÍA (3 Periodos) ---
+            const costEnergyP1 = consumo_punta * tariff.p1_price;
+            const costEnergyP2 = consumo_llano * tariff.p2_price;
+            const costEnergyP3 = consumo_valle * tariff.p3_price;
+            const subtotalEnergy = costEnergyP1 + costEnergyP2 + costEnergyP3;
+
+            // --- TÉRMINO POTENCIA (2 Periodos) ---
+            // Precio Potencia Diario (€/kW/día) = Precio Anual (€/kW/año) / 365
+            const pricePotenciaP1Daily = tariff.p_potencia_1 / ANNUAL_DAYS;
+            const pricePotenciaP2Daily = tariff.p_potencia_2 / ANNUAL_DAYS;
+
+            // Coste Potencia = Potencia Contratada (kW) * Días Facturados * Precio Diario (€/kW/día)
+            const costFixedP1 = potencia_p1_kw * dias_facturados * pricePotenciaP1Daily;
+            const costFixedP2 = potencia_p2_kw * dias_facturados * pricePotenciaP2Daily;
+            const subtotalPotencia = costFixedP1 + costFixedP2;
+
+            // --- CÁLCULO DE IMPUESTOS Y BASE IMPONIBLE ---
+
+            // Subtotal Base P+E (P+E antes del Impuesto Eléctrico)
+            const subtotalBasePE = subtotalPotencia + subtotalEnergy;
+
+            // Impuesto Eléctrico (IE) -> 5% sobre (Subtotal Potencia + Subtotal Energía)
+            const impuestoElectrico = subtotalBasePE * IE_RATE;
+            
+            // Base Imponible (P+E + IE)
+            const baseImponible = subtotalBasePE + impuestoElectrico;
+
+            // IVA (21%)
+            const totalIVA = baseImponible * IVA_RATE;
+            
+            // Coste Total del Periodo (TOTAL FACTURA)
+            const totalPeriodCostWithOffer = baseImponible + totalIVA;
+
+            // Coste Anual Proyectado (para la comparación de ahorro)
+            const factorAnual = ANNUAL_DAYS / dias_facturados;
+            const totalAnnualCost = totalPeriodCostWithOffer * factorAnual;
+
+            return {
+                costEnergyP1, costEnergyP2, costEnergyP3, // Individual energy costs
+                subtotalEnergy,
+                costFixedP1, costFixedP2, subtotalPotencia,
+                subtotalBasePE, // Base P+E antes del Impuesto Eléctrico
+                impuestoElectrico, baseImponible, totalIVA,
+                totalPeriodCostWithOffer, totalAnnualCost,
+                pricePotenciaP1Daily, pricePotenciaP2Daily
+            };
+        }
         
         // Helper para mostrar datos en la tarjeta de consumo
         function renderConsumptionDetails(data) {
@@ -629,70 +741,142 @@
                     <div class="flex justify-between"><span>Consumo Llano (P2):</span><span class="font-medium">${data.consumo_llano.toFixed(2)} kWh</span></div>
                     <div class="flex justify-between"><span>Consumo Valle (P3):</span><span class="font-medium">${data.consumo_valle.toFixed(2)} kWh</span></div>
                     <div class="flex justify-between border-t mt-2 pt-2 font-bold text-blue-600">
-                        <span>Consumo Total:</span><span>${data.consumo_total.toFixed(2)} kWh</span>
+                        <span>Consumo Total (Período):</span><span>${data.consumo_total.toFixed(2)} kWh</span>
                     </div>
                 </div>
-                <div class="text-sm space-y-1 mt-4">
+                <div class="text-sm space-y-1 mt-4 border-t pt-2">
                     <div class="flex justify-between"><span>Potencia Contratada P1 (Punta/Llano):</span><span class="font-medium">${data.potencia_p1_kw.toFixed(3)} kW</span></div>
                     <div class="flex justify-between"><span>Potencia Contratada P2 (Valle):</span><span class="font-medium">${data.potencia_p2_kw.toFixed(3)} kW</span></div>
+                    <!-- FIX: Mostramos el importe total de la factura original para comparación -->
+                    <div class="flex justify-between font-bold text-red-600 border-t pt-2 mt-2">
+                        <span>IMPORTE TOTAL FACTURA ORIGINAL:</span><span>${data.importe_total_display}</span>
+                    </div>
                 </div>
             `;
             detailsDiv.innerHTML = html;
+        }
+
+        function renderCostBreakdown(tariff, data, costResults) {
+            const { consumo_punta, consumo_llano, consumo_valle, potencia_p1_kw, potencia_p2_kw, dias_facturados } = data;
+            const { costEnergyP1, costEnergyP2, costEnergyP3, subtotalEnergy, costFixedP1, costFixedP2, subtotalPotencia, subtotalBasePE, impuestoElectrico, baseImponible, totalIVA, totalPeriodCostWithOffer, totalAnnualCost, pricePotenciaP1Daily, pricePotenciaP2Daily } = costResults;
+
+            // Valores de ejemplo para visualización (se usan los precios de la tarifa seleccionada, no los 0.099 del usuario)
+            const priceP1DailyDisplay = (tariff.p_potencia_1 / ANNUAL_DAYS).toFixed(8); // Convertir €/kW/año a €/kW/día
+            
+            const html = `
+                <div class="space-y-3">
+                    <p class="font-bold text-gray-800 border-b pb-1">TARIFA DRK ANALIZADA: ${tariff.name}</p>
+
+                    <!-- POTENCIA -->
+                    <div class="border-b pb-2">
+                        <p class="font-semibold text-blue-700">TÉRMINO POTENCIA (${dias_facturados} DÍAS)</p>
+                        <div class="breakdown-row">
+                            <span>P1 (${potencia_p1_kw.toFixed(3)} kW)</span>
+                            <span>${potencia_p1_kw.toFixed(3)} kW x ${dias_facturados} días x ${pricePotenciaP1Daily.toFixed(8)} €/kW/día = <strong class="text-green-700">${costFixedP1.toFixed(4)} €</strong></span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span>P2 (${potencia_p2_kw.toFixed(3)} kW)</span>
+                            <span>${potencia_p2_kw.toFixed(3)} kW x ${dias_facturados} días x ${pricePotenciaP2Daily.toFixed(8)} €/kW/día = <strong class="text-green-700">${costFixedP2.toFixed(4)} €</strong></span>
+                        </div>
+                        <div class="breakdown-row font-bold border-t mt-1 pt-1">
+                            <span>SUBTOTAL POTENCIA</span>
+                            <span>${subtotalPotencia.toFixed(4)} €</span>
+                        </div>
+                    </div>
+
+                    <!-- ENERGÍA -->
+                    <div class="border-b pb-2">
+                        <p class="font-semibold text-blue-700">TÉRMINO ENERGÍA (${dias_facturados} DÍAS)</p>
+                        <div class="breakdown-row">
+                            <span>E1 (Punta: ${consumo_punta.toFixed(2)} kWh)</span>
+                            <span>${consumo_punta.toFixed(2)} kWh x ${tariff.p1_price.toFixed(8)} €/kWh = ${costEnergyP1.toFixed(4)} €</span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span>E2 (Llano: ${consumo_llano.toFixed(2)} kWh)</span>
+                            <span>${consumo_llano.toFixed(2)} kWh x ${tariff.p2_price.toFixed(8)} €/kWh = ${costEnergyP2.toFixed(4)} €</span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span>E3 (Valle: ${consumo_valle.toFixed(2)} kWh)</span>
+                            <span>${consumo_valle.toFixed(2)} kWh x ${tariff.p3_price.toFixed(8)} €/kWh = ${costEnergyP3.toFixed(4)} €</span>
+                        </div>
+                        <div class="breakdown-row font-bold border-t mt-1 pt-1">
+                            <span>SUBTOTAL ENERGÍA</span>
+                            <span>${subtotalEnergy.toFixed(4)} €</span>
+                        </div>
+                    </div>
+
+                    <!-- IMPUESTOS Y TOTAL -->
+                    <div class="space-y-1">
+                        <div class="breakdown-row font-semibold">
+                            <span>SUBTOTAL P+E (Base de Impuesto Eléctrico)</span>
+                            <span>${subtotalBasePE.toFixed(4)} €</span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span class="text-red-700">+ Impuesto Eléctrico (${(IE_RATE * 100).toFixed(0)}%)</span>
+                            <span class="text-red-700">${impuestoElectrico.toFixed(4)} €</span>
+                        </div>
+                        <div class="breakdown-row font-semibold border-t mt-1 pt-1">
+                            <span>BASE IMPONIBLE (P+E + IE)</span>
+                            <span>${baseImponible.toFixed(4)} €</span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span class="text-red-700">+ IVA (${(IVA_RATE * 100).toFixed(0)}%)</span>
+                            <span class="text-red-700">${totalIVA.toFixed(4)} €</span>
+                        </div>
+                    </div>
+
+                    <div class="breakdown-row font-extrabold text-lg bg-green-200 p-2 rounded-lg">
+                        <span>TOTAL FACTURA DRK (PARA ${dias_facturados} DÍAS)</span>
+                        <span>${totalPeriodCostWithOffer.toFixed(2)} €</span>
+                    </div>
+                    
+                    <div class="breakdown-row font-extrabold text-lg bg-blue-200 p-2 rounded-lg">
+                        <span>TOTAL ANUAL ESTIMADO DRK</span>
+                        <span>${totalAnnualCost.toFixed(2)} €</span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('cost-breakdown').innerHTML = html;
         }
 
 
         function compareOffers(parsedData) {
             // 1. Datos reales extraídos del QR
             const diasFacturados = parsedData.dias_facturados;
-            const consumoPunta = parsedData.consumo_punta;
-            const consumoLlano = parsedData.consumo_llano;
-            const consumoValle = parsedData.consumo_valle;
-            const potenciaP1 = parsedData.potencia_p1_kw;
-            const potenciaP2 = parsedData.potencia_p2_kw;
             
-            // El coste anual se calcula escalando el consumo del periodo de la factura (diasFacturados)
-            const factorAnual = 365 / diasFacturados;
+            // Factor para anualizar el coste del periodo (usado para el cálculo final de ahorro)
+            const factorAnual = ANNUAL_DAYS / diasFacturados;
             
             // Coste de la factura original (basado en el campo imp del QR)
-            const currentBillCost = parsedData.raw_data.imp ? parseFloat(parsedData.raw_data.imp) : 0;
-            const simulatedCurrentCost = currentBillCost * factorAnual;
+            // IMPORTANTE: Usamos el importe total del QR (imp) como referencia.
+            const originalBillTotalCost = parsedData.importe_total; 
+            const originalBillAnnualCost = originalBillTotalCost * factorAnual; // Coste Anual de referencia
 
             document.getElementById('cups-value').textContent = parsedData.cups;
             renderConsumptionDetails(parsedData); // Mostrar los datos extraídos
 
             let bestOffer = null;
             let minAnnualCost = Infinity;
+            let bestOfferCostDetails = null;
 
             const comparisonDetails = document.getElementById('comparison-details');
             comparisonDetails.innerHTML = ''; 
             
             currentTariffs.forEach(tariff => {
-                // 2. Cálculo de Coste Energía del periodo de la factura (kWh * Precio)
-                const costEnergyPeriod = (consumoPunta * tariff.p1_price) + 
-                                         (consumoLlano * tariff.p2_price) + 
-                                         (consumoValle * tariff.p3_price);
-                
-                // 3. Cálculo de Coste Potencia del periodo de la factura (€/kW/año * kW * Días/365)
-                // Coste Potencia P1 (Punta/Llano): (kW * PrecioP1 / 365) * Días
-                const costFixedP1Period = (potenciaP1 * tariff.p_potencia_1 / 365) * diasFacturados; 
-                // Coste Potencia P2 (Valle): (kW * PrecioP2 / 365) * Días
-                const costFixedP2Period = (potenciaP2 * tariff.p_potencia_2 / 365) * diasFacturados; 
-
-                // Coste Total del Periodo de la Factura (Sin impuestos, ni alquiler, ni ajustes)
-                const totalPeriodCost = costEnergyPeriod + costFixedP1Period + costFixedP2Period;
-                
-                // 4. Cálculo de Coste Anual Proyectado (Aplicando factor de anualización)
-                const totalAnnualCost = totalPeriodCost * factorAnual;
+                // Se realiza el cálculo completo de la oferta
+                const costResults = calculateOfferCost(tariff, parsedData);
+                const totalAnnualCost = costResults.totalAnnualCost;
 
                 tariff.annualCost = totalAnnualCost;
 
-                // 5. Determinar la mejor oferta
+                // 2. Determinar la mejor oferta
                 if (totalAnnualCost < minAnnualCost) {
                     minAnnualCost = totalAnnualCost;
                     bestOffer = tariff;
+                    bestOfferCostDetails = costResults; // Guardar el desglose de la mejor oferta
                 }
 
-                // 6. Renderizar el detalle
+                // 3. Renderizar el detalle
                 const detailHtml = `
                     <div class="p-3 border rounded-lg shadow-sm ${tariff === bestOffer ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
                         <p class="font-bold ${tariff === bestOffer ? 'text-green-700' : 'text-gray-700'}">${tariff.name}</p>
@@ -702,7 +886,7 @@
                         <p class="text-xs text-gray-500">
                             Precios Potencia (P1/P2): ${tariff.p_potencia_1.toFixed(2)} / ${tariff.p_potencia_2.toFixed(2)} €/kW/año
                         </p>
-                        <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est.)</p>
+                        <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est. con IVA)</p>
                     </div>
                 `;
                 comparisonDetails.innerHTML += detailHtml;
@@ -711,17 +895,20 @@
             // Mostrar el resultado final
             if (bestOffer) {
                 // Cálculo de ahorro: (Coste Anual Actual Simulado) - (Coste Anual de la Mejor Oferta)
-                // Usamos el importe total de la factura ANUALIZADO (simulatedCurrentCost) para el cálculo del ahorro.
-                const savings = simulatedCurrentCost - bestOffer.annualCost;
+                const savings = originalBillAnnualCost - bestOffer.annualCost;
                 
                 document.getElementById('best-offer-name').textContent = bestOffer.name;
                 document.getElementById('best-offer-desc').textContent = bestOffer.description;
                 document.getElementById('savings-estimate').textContent = `${savings.toFixed(2)} €`;
 
+                // Renderizar el desglose de la mejor oferta
+                renderCostBreakdown(bestOffer, parsedData, bestOfferCostDetails);
+
             } else {
                    document.getElementById('best-offer-name').textContent = "No se encontró una oferta compatible.";
                    document.getElementById('best-offer-desc').textContent = "Contacta con un asesor para un estudio personalizado.";
                    document.getElementById('savings-estimate').textContent = `0.00 €`;
+                   document.getElementById('cost-breakdown').innerHTML = '<p class="text-gray-500 text-center">No hay desglose disponible sin ofertas compatibles.</p>';
             }
 
             showView('results-view');
