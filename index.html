@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comparador de Tarifas DRK - Escaneo QR</title>
-    <!-- Carga de Tailwind CSS -->
+    <title>Comparador de Tarifas DRK - Escaneo QR en Vivo</title>
+    <!-- Carga de Tailwind CSS para estilos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Configuración de fuente y estilos base */
@@ -46,13 +46,13 @@
     <div id="app" class="w-full max-w-lg mx-auto bg-white p-6 md:p-8 rounded-xl shadow-2xl">
         <header class="text-center mb-6">
             <h1 class="text-3xl font-extrabold text-blue-600">DRK Comparador Inteligente</h1>
-            <p class="text-gray-500 mt-1 text-sm">Escanea tu QR y encuentra la mejor oferta 2.0 TD.</p>
+            <p class="text-gray-500 mt-1 text-sm">Escanea en vivo y encuentra la mejor oferta 2.0 TD.</p>
         </header>
 
-        <!-- Sección de Instrucciones y Botón de Inicio -->
+        <!-- Sección de Instrucciones y Botón de Inicio (Vista 1) -->
         <div id="initial-view">
             
-            <!-- Bloque de Carga de Tarifas -->
+            <!-- Bloque de Carga de Tarifas (CSV) -->
             <div class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 rounded-lg shadow-sm" role="alert">
                 <p class="font-bold">Carga de Tarifas DRK</p>
                 <p class="text-sm">Actualmente hay <span id="tariff-count" class="font-bold">4 tarifas</span> cargadas.
@@ -69,46 +69,48 @@
                 </div>
             </div>
             
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Paso 1: Escanea tu CUPS</h2>
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Paso 1: Activa la Cámara</h2>
             <div class="space-y-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <p class="flex items-center text-sm text-blue-800">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 000 2h2a1 1 0 100-2h-2zm-2 4a1 1 0 001 1h4a1 1 0 100-2h-4a1 1 0 00-1 1z" clip-rule="evenodd"></path></svg>
-                    Asegúrate de tener tu factura de luz a mano.
+                    Pulsa el botón, acepta los permisos de cámara y enfoca el QR.
                 </p>
                 <p class="flex items-center text-sm text-blue-800">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 100 2h2a1 1 0 100-2h-2zM4 3a1 1 0 100 2h2a1 1 0 100-2H4zM11 15a1 1 0 100 2h2a1 1 0 100-2h-2zM4 15a1 1 0 100 2h2a1 1 0 100-2H4z" /></svg>
-                    El código QR suele estar en la parte superior o lateral.
+                    El análisis se hará de forma automática.
                 </p>
             </div>
+            
+            <!-- Botón de Inicio de Escaneo en Vivo -->
             <button id="start-scan-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Iniciar Escaneo de QR
+                Iniciar Escaneo de QR en Vivo
             </button>
-            <p id="loading-status" class="text-center text-sm text-gray-500 mt-4 hidden">Cargando tarifas y preparando la cámara...</p>
+            <p id="loading-status" class="text-center text-sm text-gray-500 mt-4 hidden">Preparando la cámara...</p>
             
             <!-- Simulador para pruebas -->
-            <div id="simulation-input" class="mt-4 p-4 bg-gray-100 rounded-lg hidden">
-                <p class="text-sm font-medium text-gray-600 mb-2">Simulación: Ingrese CUPS manualmente si el escaneo falla (Ej: ES0031100000000000AA0F)</p>
+            <div id="simulation-input" class="mt-4 p-4 bg-gray-100 rounded-lg">
+                <p class="text-sm font-medium text-gray-600 mb-2">Alternativa: Ingrese CUPS manualmente</p>
                 <input type="text" id="cups-input" placeholder="CUPS (ES...)" value="ES0031100000000000AA0F" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                 <button id="simulate-scan-btn" class="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition duration-300">
-                    Simular Escaneo y Comparar
+                    Comparar con CUPS Manual
                 </button>
             </div>
         </div>
 
-        <!-- Vista de la Cámara/Escaneo -->
+        <!-- Vista de la Cámara/Escaneo (Vista 2) -->
         <div id="scanner-view" class="hidden">
             <p class="text-lg font-semibold text-center mb-3 text-gray-700">Apunta la cámara al QR de la factura</p>
             <div id="interactive" class="viewport shadow-lg rounded-lg overflow-hidden border-4 border-dashed border-blue-300"></div>
             <p id="scan-message" class="text-center text-sm mt-3 text-red-500">
-                Asegúrate de otorgar permisos de cámara. Si el QR no se lee, usa el botón de "Simular" de abajo.
+                Asegúrate de otorgar permisos de cámara. Si el QR no se lee, presione Detener.
             </p>
             <button id="stop-scan-btn" class="w-full mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300">
                 Detener Escaneo
             </button>
         </div>
 
-        <!-- Sección de Resultados de Comparación -->
+        <!-- Vista de Resultados (Vista 3) -->
         <div id="results-view" class="hidden">
             <h2 class="text-2xl font-bold text-center mb-4 text-green-600">¡Comparación Exitosa!</h2>
             <div id="cups-display" class="bg-gray-100 p-3 rounded-lg mb-4 text-center">
@@ -176,7 +178,6 @@
     <script>
         // ==============================================================================
         //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA !!!
-        //  Estas tarifas se usan si no se carga un archivo CSV.
         // ==============================================================================
         const defaultTariffs = [
             {
@@ -222,16 +223,16 @@
         ];
         // ==============================================================================
 
-        let currentTariffs = [...defaultTariffs]; // Usamos las de ejemplo al inicio
+        let currentTariffs = [...defaultTariffs];
         let scannerRunning = false;
         
         // Referencias a los elementos del DOM
         const initialView = document.getElementById('initial-view');
-        const scannerView = document.getElementById('scanner-view');
         const resultsView = document.getElementById('results-view');
-        const interactiveViewport = document.getElementById('interactive');
+        const scannerView = document.getElementById('scanner-view'); // Reintroducido
+        const interactiveViewport = document.getElementById('interactive'); // Reintroducido
         const startScanBtn = document.getElementById('start-scan-btn');
-        const stopScanBtn = document.getElementById('stop-scan-btn');
+        const stopScanBtn = document.getElementById('stop-scan-btn'); // Reintroducido
         const loadingStatus = document.getElementById('loading-status');
         const simulationInput = document.getElementById('simulation-input');
         const simulateScanBtn = document.getElementById('simulate-scan-btn');
@@ -249,8 +250,8 @@
         
         function showView(viewId) {
             initialView.classList.add('hidden');
-            scannerView.classList.add('hidden');
             resultsView.classList.add('hidden');
+            scannerView.classList.add('hidden'); // Ocultar vista de escáner
             document.getElementById(viewId).classList.remove('hidden');
         }
 
@@ -274,7 +275,7 @@
                 simulationInput.classList.add('hidden');
             } else {
                 startScanBtn.disabled = false;
-                startScanBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Iniciar Escaneo de QR`;
+                startScanBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Iniciar Escaneo de QR en Vivo`;
                 loadingStatus.classList.add('hidden');
                 // Mostrar simulación si no estamos cargando
                 simulationInput.classList.remove('hidden'); 
@@ -290,15 +291,12 @@
         // --- Lógica de Carga de Archivo CSV ---
 
         function parseCSV(text) {
-            // Divide el texto en líneas y luego en columnas
             const lines = text.trim().split('\n');
-            if (lines.length < 2) return []; // Necesita cabecera y al menos una fila de datos
+            if (lines.length < 2) return [];
 
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-            // Se actualizan las cabeceras requeridas para incluir p_potencia_1 y p_potencia_2
             const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'p_potencia_1', 'p_potencia_2'];
             
-            // Validación básica de cabeceras
             if (!requiredHeaders.every(h => headers.includes(h))) {
                 throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2.");
             }
@@ -306,21 +304,19 @@
             const newTariffs = [];
             for (let i = 1; i < lines.length; i++) {
                 const values = lines[i].split(',');
-                if (values.length !== headers.length) continue; // Ignorar líneas mal formadas
+                if (values.length !== headers.length) continue; 
 
                 const tariff = { cups_match: ["2.0TD"] };
                 
-                // Mapear valores a la estructura de tarifa
                 for (let j = 0; j < headers.length; j++) {
                     const header = headers[j];
                     const value = values[j].trim();
                     
-                    if (header.includes('price') || header.includes('potencia')) { // Incluye potencia ahora
-                        // Intentar convertir a número (usando punto decimal)
+                    if (header.includes('price') || header.includes('potencia')) { 
                         const numValue = parseFloat(value.replace(',', '.'));
                         if (isNaN(numValue)) {
                             console.warn(`Valor no numérico en columna ${header} en la línea ${i + 1}. Fila ignorada.`);
-                            continue; // Ignorar esta fila si el precio es inválido
+                            continue; 
                         }
                         tariff[header] = numValue;
                     } else {
@@ -328,7 +324,6 @@
                     }
                 }
                 
-                // Solo añadir si tiene los datos de precio válidos
                 if (tariff.p1_price !== undefined) {
                     newTariffs.push(tariff);
                 }
@@ -364,35 +359,21 @@
             csvFileInput.value = ''; // Resetear el input para permitir cargar el mismo archivo dos veces
         }
 
-        // --- Inicialización de la App ---
-
-        function initApp() {
-            setLoading(false, 'Listo para escanear');
-            updateTariffCount(); // Muestra el conteo de tarifas por defecto
-            
-            // Asignar el evento al botón y al input de archivo
-            loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
-            csvFileInput.addEventListener('change', loadTariffsFromFile);
-            
-            console.log("Tarifas de ejemplo cargadas. Use el botón 'Cargar Tarifas (CSV)' para actualizarlas.");
-        }
-
-        // --- Lógica de Escaneo QR (QuaggaJS) ---
+        // --- Lógica de Escaneo en Vivo (Live Scan) ---
 
         function startScanner() {
-            if (scannerRunning) return;
-
-            // Antes de escanear, validar que hay tarifas para comparar
             if (currentTariffs.length === 0) {
                  showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (recargue la página).");
                  return;
             }
 
+            if (scannerRunning) return;
+
             showView('scanner-view');
             scannerRunning = true;
             
             if (typeof Quagga === 'undefined') {
-                showErrorModal("El lector QR no se cargó correctamente. Por favor, intenta de nuevo.");
+                showErrorModal("El lector QR no se cargó correctamente.");
                 return;
             }
 
@@ -412,8 +393,9 @@
                 if (err) {
                     console.error("Error al iniciar QuaggaJS:", err);
                     stopScanner();
-                    showView('initial-view');
-                    showErrorModal("No se pudo acceder a la cámara. Por favor, ingresa el CUPS manualmente o revisa los permisos.");
+                    // Si falla el acceso a la cámara, volvemos a la vista inicial con error
+                    showView('initial-view'); 
+                    showErrorModal("No se pudo acceder a la cámara. Revisa los permisos e inténtalo de nuevo.");
                     return
                 }
                 console.log("QuaggaJS iniciado correctamente. Esperando código QR...");
@@ -461,7 +443,6 @@
             document.getElementById('cups-value').textContent = cups;
             
             // --- PARÁMETROS DE SIMULACIÓN DE CONSUMO TÍPICO 2.0 TD ---
-            // Asumimos un perfil estándar 2.0TD (3 períodos de energía)
             const annualConsumption = 3000; // kWh/año
             const consumptionProfile = { 
                 p1: 0.40, // 40% Punta (Energía)
@@ -469,8 +450,7 @@
                 p3: 0.30, // 30% Valle (Energía)
             };
             
-            // Asumimos una potencia contratada estándar para la simulación de Coste Fijo
-            // *NOTA: La potencia contratada P1 aplica a P1 y P2 de energía. P2 de potencia aplica a P3 de energía.
+            // Potencia contratada estándar para la simulación
             const contractedPowerP1 = 4.6; // kW (Potencia Punta/Llano)
             const contractedPowerP2 = 4.6; // kW (Potencia Valle)
 
@@ -486,7 +466,6 @@
             comparisonDetails.innerHTML = ''; 
             
             currentTariffs.forEach(tariff => {
-                // 1. Validar que la tarifa es para el segmento 2.0 TD
                 if (tariff.cups_match.includes("2.0TD")) {
                     
                     // 2. Cálculo de coste variable (energía)
@@ -495,8 +474,6 @@
                                        (consumptionP3 * tariff.p3_price);
                     
                     // 3. Cálculo de coste fijo (potencia)
-                    // (Potencia P1 contratada * Precio P1/kW/año) + (Potencia P2 contratada * Precio P2/kW/año)
-                    // Asumimos que los precios de potencia están en €/kW/año
                     const costFixed = (contractedPowerP1 * tariff.p_potencia_1) + 
                                       (contractedPowerP2 * tariff.p_potencia_2);
                     
@@ -544,24 +521,37 @@
             showView('results-view');
         }
 
-        // --- Event Listeners ---
-        startScanBtn.addEventListener('click', startScanner);
-        stopScanBtn.addEventListener('click', stopScanner);
+        // --- Event Listeners y Inicialización ---
 
-        simulateScanBtn.addEventListener('click', () => {
-            const cups = cupsInput.value.trim();
-            if (cups.length > 10) {
-                if (currentTariffs.length === 0) {
-                     showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o recargue la página.");
-                     return;
+        function initApp() {
+            setLoading(false, 'Listo para escanear');
+            updateTariffCount(); // Muestra el conteo de tarifas por defecto
+            
+            // 1. Carga de CSV de tarifas
+            loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
+            csvFileInput.addEventListener('change', loadTariffsFromFile);
+            
+            // 2. Escaneo en vivo
+            startScanBtn.addEventListener('click', startScanner);
+            stopScanBtn.addEventListener('click', stopScanner);
+
+            // 3. Simulación manual
+            simulateScanBtn.addEventListener('click', () => {
+                const cups = cupsInput.value.trim();
+                if (cups.length > 10) {
+                    if (currentTariffs.length === 0) {
+                         showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o recargue la página.");
+                         return;
+                    }
+                    handleCupsRead(`https://drk.com/cups?c=${cups}`); 
+                } else {
+                    showErrorModal("Por favor, introduce un CUPS válido para la simulación.");
                 }
-                handleCupsRead(`https://drk.com/cups?c=${cups}`); 
-            } else {
-                showErrorModal("Por favor, introduce un CUPS válido para la simulación.");
-            }
-        });
+            });
+            
+            console.log("Aplicación inicializada. Intentando usar la cámara en vivo para el escaneo.");
+        }
         
-        // --- Inicialización ---
         window.onload = initApp;
     </script>
 </body>
