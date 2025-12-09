@@ -232,16 +232,12 @@
             console.warn("Configuración de Firebase no encontrada. El comparador seguirá funcionando con datos de simulación.");
         }
         
-        // Constantes de cálculo (movidas aquí para uso global en la carga CSV)
-        const IVA_RATE = 0.21;
-        const IE_RATE = 0.05; // Impuesto Eléctrico (5%)
-        const ANNUAL_DAYS = 365;
-
+        // Constantes de cálculo
+        const ANNUAL_DAYS = 365; // Se necesita globalmente para la conversión en parseCSV
+        
         // ==============================================================================
-        //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA !!!
+        //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA (NO UTILIZADAS AL INICIO) !!!
         // ==============================================================================
-        // NOTA: Los precios de potencia aquí están en €/kW/año.
-        // Se mantiene la lista para referencia, pero currentTariffs se inicializa como vacío.
         const defaultTariffs = [
             {
                 name: "DRK Oferta Estrella (EJEMPLO - Ahorro medio)",
@@ -689,13 +685,12 @@
 
         // --- Lógica de Comparación de Tarifas ---
         
-        // Constantes de cálculo
-        const IVA_RATE = 0.21;
-        const IE_RATE = 0.05; // Impuesto Eléctrico (5%)
-        const ANNUAL_DAYS = 365;
-
         // Función que realiza el cálculo de costes para UNA oferta y el periodo de la factura.
         function calculateOfferCost(tariff, data) {
+            // FIX: Declarar constantes de impuestos dentro de la función para evitar la redeclaración global.
+            const IVA_RATE = 0.21;
+            const IE_RATE = 0.05; // Impuesto Eléctrico (5%)
+            
             const { dias_facturados, consumo_punta, consumo_llano, consumo_valle, potencia_p1_kw, potencia_p2_kw } = data;
 
             // --- TÉRMINO ENERGÍA (3 Periodos) ---
@@ -839,7 +834,7 @@
                             <span>${baseImponible.toFixed(4)} €</span>
                         </div>
                         <div class="breakdown-row">
-                            <span class="text-red-700">+ IVA (${(IVA_RATE * 100).toFixed(0)}%)</span>
+                            <span class="text-red-700">+ IVA (${(21 * 100/100).toFixed(0)}%)</span> <!-- Usamos 21% directamente aquí para el display -->
                             <span class="text-red-700">${totalIVA.toFixed(4)} €</span>
                         </div>
                     </div>
@@ -949,9 +944,10 @@
             setLoading(false, 'Listo para escanear');
             updateTariffCount();
             
+            // FIX: Asociación de eventos de botones
             loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
             csvFileInput.addEventListener('change', loadTariffsFromFile);
-            resetTariffsBtn.addEventListener('click', resetTariffs); // NUEVO LISTENER
+            resetTariffsBtn.addEventListener('click', resetTariffs); 
             
             startScanBtn.addEventListener('click', startScanner);
             stopScanBtn.addEventListener('click', stopScanner);
