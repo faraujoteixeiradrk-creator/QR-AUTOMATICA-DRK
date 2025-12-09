@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comparador de Tarifas DRK - Escaneo QR en Vivo</title>
+    <title>DRK: Comparador de Tarifas 2.0 TD (QR CNMC)</title>
     <!-- Carga de Tailwind CSS para estilos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -20,10 +20,12 @@
             margin: 0 auto;
             position: relative;
         }
-        #interactive.viewport > canvas, #interactive.viewport > video {
+        /* El video se muestra en el viewport, el canvas se mantiene para el procesamiento */
+        #interactive.viewport > video {
             width: 100%;
             height: 100%;
             display: block;
+            border-radius: 0.75rem; /* rounded-xl */
         }
         .loading-ring {
             border: 4px solid rgba(255, 255, 255, 0.3);
@@ -38,15 +40,15 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-    <!-- QuaggaJS CDN para escaneo QR (FIX: Cambiada a versión 0.12.0 para mayor estabilidad) -->
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.0/dist/quagga.min.js"></script>
+    <!-- jsQR (estable y sin problemas de Web Workers) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body class="p-4 flex flex-col min-h-screen">
 
     <div id="app" class="w-full max-w-lg mx-auto bg-white p-6 md:p-8 rounded-xl shadow-2xl">
         <header class="text-center mb-6">
             <h1 class="text-3xl font-extrabold text-blue-600">DRK Comparador Inteligente</h1>
-            <p class="text-gray-500 mt-1 text-sm">Escanea en vivo y encuentra la mejor oferta 2.0 TD.</p>
+            <p class="text-gray-500 mt-1 text-sm">Escanea tu QR CNMC y encuentra la mejor oferta 2.0 TD.</p>
         </header>
 
         <!-- Sección de Instrucciones y Botón de Inicio (Vista 1) -->
@@ -73,11 +75,11 @@
             <div class="space-y-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <p class="flex items-center text-sm text-blue-800">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 000 2h2a1 1 0 100-2h-2zm-2 4a1 1 0 001 1h4a1 1 0 100-2h-4a1 1 0 00-1 1z" clip-rule="evenodd"></path></svg>
-                    Pulsa el botón, acepta los permisos de cámara y enfoca el QR.
+                    Pulsa el botón, acepta los permisos de cámara y enfoca el QR de tu factura CNMC.
                 </p>
                 <p class="flex items-center text-sm text-blue-800">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 100 2h2a1 1 0 100-2h-2zM4 3a1 1 0 100 2h2a1 1 0 100-2H4zM11 15a1 1 0 100 2h2a1 1 0 100-2h-2zM4 15a1 1 0 100 2h2a1 1 0 100-2H4z" /></svg>
-                    El análisis se hará de forma automática.
+                    El análisis se hará de forma automática para extraer consumos y potencias.
                 </p>
             </div>
             
@@ -90,10 +92,10 @@
             
             <!-- Simulador para pruebas -->
             <div id="simulation-input" class="mt-4 p-4 bg-gray-100 rounded-lg">
-                <p class="text-sm font-medium text-gray-600 mb-2">Alternativa: Ingrese CUPS manualmente</p>
-                <input type="text" id="cups-input" placeholder="CUPS (ES...)" value="ES0031100000000000AA0F" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                <p class="text-sm font-medium text-gray-600 mb-2">Alternativa: Ingrese CNMC QR data o CUPS manualmente</p>
+                <input type="text" id="cups-input" placeholder="Pegue aquí la cadena CNMC o un CUPS (Ej: cups=ES...)" value="cups=ES0031100000000000AA0F&iniF=01/01/2024&finF=31/01/2024&cfP1=100&cfP2=150&cfP3=250&pP1=4.6&pP2=4.6&imp=50.00" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs">
                 <button id="simulate-scan-btn" class="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition duration-300">
-                    Comparar con CUPS Manual
+                    Comparar con Datos Manuales
                 </button>
             </div>
         </div>
@@ -101,7 +103,8 @@
         <!-- Vista de la Cámara/Escaneo (Vista 2) -->
         <div id="scanner-view" class="hidden">
             <p class="text-lg font-semibold text-center mb-3 text-gray-700">Apunta la cámara al QR de la factura</p>
-            <div id="interactive" class="viewport shadow-lg rounded-lg overflow-hidden border-4 border-dashed border-blue-300"></div>
+            <!-- El elemento interactive ahora contendrá el video de la cámara -->
+            <div id="interactive" class="viewport shadow-lg rounded-xl overflow-hidden border-4 border-dashed border-blue-300"></div>
             <p id="scan-message" class="text-center text-sm mt-3 text-red-500">
                 Asegúrate de otorgar permisos de cámara. Si el QR no se lee, presione Detener o Capturar.
             </p>
@@ -124,15 +127,20 @@
                 <p id="cups-value" class="font-mono text-lg text-gray-800 truncate"></p>
             </div>
             
-            <h3 class="text-xl font-semibold text-gray-700 mb-3">La Mejor Oferta para ti es:</h3>
+            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Datos de Consumo de tu Factura</h3>
+            <div id="user-consumption-details" class="space-y-2 bg-gray-50 p-4 rounded-lg mb-6">
+                <!-- Se llenará con los datos de Consumo y Potencia del QR -->
+            </div>
+
+            <h3 class="text-xl font-semibold text-gray-700 mb-3">La Mejor Oferta DRK para ti es:</h3>
             <div id="best-offer-card" class="p-5 bg-yellow-100 border-2 border-yellow-500 rounded-xl shadow-lg mb-6">
                 <p id="best-offer-name" class="text-2xl font-bold text-yellow-800"></p>
                 <p id="best-offer-desc" class="text-gray-700 mt-1"></p>
-                <p class="mt-3 text-sm font-semibold text-gray-800">Ahorro Anual Estimado (Simulado):</p>
+                <p class="mt-3 text-sm font-semibold text-gray-800">Ahorro Anual Estimado (Basado en tu Consumo Real):</p>
                 <p id="savings-estimate" class="text-3xl font-extrabold text-green-700 mt-1"></p>
             </div>
             
-            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Detalle de Comparativa (Simulación)</h3>
+            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Detalle de Comparativa Anual (Basado en Consumo del QR)</h3>
             <div id="comparison-details" class="space-y-4">
                 <!-- Se llenará con la comparación de tarifas -->
             </div>
@@ -183,18 +191,15 @@
 
     <script type="module">
         // --- 1. CONFIGURACIÓN INICIAL DE FIREBASE (OBLIGATORIO PARA EL ENTORNO) ---
-        // Importaciones de Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         
-        // Variables globales del entorno Canvas
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
         if (Object.keys(firebaseConfig).length > 0) {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
 
-            // Función para inicializar la autenticación
             const initAuth = async () => {
                 try {
                     if (typeof __initial_auth_token !== 'undefined') {
@@ -218,11 +223,11 @@
             {
                 name: "DRK Oferta Estrella (EJEMPLO)",
                 description: "La mejor para clientes con consumo diurno.",
-                p1_price: 0.15,
-                p2_price: 0.10,
-                p3_price: 0.05,
-                p_potencia_1: 40.0, // €/kW/año
-                p_potencia_2: 20.0, // €/kW/año
+                p1_price: 0.15, // Precio energía Punta (€/kWh)
+                p2_price: 0.10, // Precio energía Llano (€/kWh)
+                p3_price: 0.05, // Precio energía Valle (€/kWh)
+                p_potencia_1: 40.0, // Precio Potencia P1 (€/kW/año)
+                p_potencia_2: 20.0, // Precio Potencia P2 (€/kW/año)
                 cups_match: ["2.0TD"],
             },
             {
@@ -268,7 +273,7 @@
         const interactiveViewport = document.getElementById('interactive'); 
         const startScanBtn = document.getElementById('start-scan-btn');
         const stopScanBtn = document.getElementById('stop-scan-btn'); 
-        const capturePhotoBtn = document.getElementById('capture-photo-btn'); // NUEVO BOTÓN
+        const capturePhotoBtn = document.getElementById('capture-photo-btn');
         const loadingStatus = document.getElementById('loading-status');
         const simulationInput = document.getElementById('simulation-input');
         const simulateScanBtn = document.getElementById('simulate-scan-btn');
@@ -276,6 +281,14 @@
         const csvFileInput = document.getElementById('csv-file-input');
         const loadTariffsBtn = document.getElementById('load-tariffs-btn');
         const tariffCountSpan = document.getElementById('tariff-count');
+
+        // Variables para jsQR (cámara y procesamiento)
+        let stream = null;
+        let video = null;
+        let canvas = null;
+        let canvasCtx = null;
+        let animationFrameId = null;
+        let billDays = 30; // Días de facturación (se calculará en la comparación)
 
 
         // --- Funciones de Utilidad y UI ---
@@ -325,6 +338,7 @@
         };
 
         // --- Lógica de Carga de Archivo CSV ---
+        // (Mantenida como en la versión anterior)
 
         function parseCSV(text) {
             const lines = text.trim().split('\n');
@@ -332,7 +346,6 @@
 
             let rawHeaders = lines[0].trim();
             let delimiter = ',';
-            // Detección de delimitador: Si no hay 7 campos con la coma, intenta con punto y coma.
             if (rawHeaders.split(',').length < 7 && rawHeaders.split(';').length >= 7) {
                 delimiter = ';';
             }
@@ -340,14 +353,12 @@
             const headers = rawHeaders.split(delimiter).map(h => h.trim().toLowerCase());
             const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'p_potencia_1', 'p_potencia_2'];
             
-            // Verificación estricta de las cabeceras requeridas
             if (!requiredHeaders.every(h => headers.includes(h))) {
                 throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, p_potencia_1, p_potencia_2.");
             }
 
             const newTariffs = [];
             for (let i = 1; i < lines.length; i++) {
-                // Usar el delimitador detectado
                 const values = lines[i].split(delimiter); 
                 if (values.length !== headers.length) continue; 
 
@@ -358,7 +369,6 @@
                     const value = values[j].trim();
                     
                     if (header.includes('price') || header.includes('potencia')) { 
-                        // Intentar convertir a número (usando punto decimal)
                         const numValue = parseFloat(value.replace(',', '.'));
                         if (isNaN(numValue)) {
                             console.warn(`Valor no numérico en columna ${header} en la línea ${i + 1}. Fila ignorada.`);
@@ -374,7 +384,6 @@
                     newTariffs.push(tariff);
                 }
             }
-
             return newTariffs;
         }
 
@@ -402,157 +411,255 @@
                 }
             };
             reader.readAsText(file);
-            csvFileInput.value = ''; // Resetear el input para permitir cargar el mismo archivo dos veces
+            csvFileInput.value = '';
+        }
+        
+        // --- PARSER DE CÓDIGO QR CNMC (Adaptado de la lógica del usuario) ---
+
+        function dateDiffInDays(date1, date2) {
+            const dt1 = new Date(date1.split('/').reverse().join('-')); // Convierte DD/MM/YYYY a YYYY-MM-DD
+            const dt2 = new Date(date2.split('/').reverse().join('-'));
+            const diffTime = Math.abs(dt2 - dt1);
+            // Sumar 1 día para incluir el día de inicio
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
         }
 
-        // --- Lógica de Escaneo en Vivo (Live Scan) ---
+        function parseQR(text) {
+            const params = {};
+            text.split("&").forEach(pair => {
+                const [key, value] = pair.split("=");
+                params[key] = decodeURIComponent(value || "");
+            });
+            
+            // Consumos (convertir a número, usando 0 como fallback)
+            const cfP1 = parseFloat(params.cfP1 || 0);
+            const cfP2 = parseFloat(params.cfP2 || 0);
+            const cfP3 = parseFloat(params.cfP3 || 0);
+            const consumoTotal = cfP1 + cfP2 + cfP3;
+
+            // Potencias (convertir a número, usando 0 como fallback)
+            const pP1 = parseFloat(params.pP1 || 0); // Potencia Contratada P1 (Punta/Llano)
+            const pP2 = parseFloat(params.pP2 || 0); // Potencia Contratada P2 (Valle)
+
+            // Fechas
+            const iniF = params.iniF || '';
+            const finF = params.finF || '';
+            let diasFacturados = 0;
+            if (iniF && finF) {
+                try {
+                    diasFacturados = dateDiffInDays(iniF, finF);
+                } catch (e) {
+                    console.error("Error calculando días:", e);
+                }
+            }
+
+            return {
+                cups: params.cups || 'CUPS NO ENCONTRADO',
+                dias_facturados: diasFacturados,
+                
+                // Consumos
+                consumo_punta: cfP1,
+                consumo_llano: cfP2,
+                consumo_valle: cfP3,
+                consumo_total: consumoTotal,
+
+                // Potencias (Contratada)
+                potencia_p1_kw: pP1, 
+                potencia_p2_kw: pP2,
+                
+                // Otros datos para mostrar
+                fecha_inicio: iniF,
+                fecha_fin: finF,
+                importe_total: parseFloat(params.imp || 0).toFixed(2) + " €",
+                codigo_postal: params.cp || '-',
+                
+                raw_data: params
+            };
+        }
+
+        // --- Lógica de Escaneo en Vivo (jsQR) ---
+        
+        function scanLoop() {
+            if (!scannerRunning || !video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+                animationFrameId = requestAnimationFrame(scanLoop);
+                return;
+            }
+
+            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            }
+
+            canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+            if (code) {
+                stopScanner();
+                handleQRRead(code.data);
+                return;
+            }
+            animationFrameId = requestAnimationFrame(scanLoop);
+        }
 
         function startScanner() {
             if (currentTariffs.length === 0) {
-                   showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (recargue la página).");
-                   return;
+                showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (recargue la página).");
+                return;
             }
-
             if (scannerRunning) return;
 
             showView('scanner-view');
             scannerRunning = true;
+            document.getElementById('scan-message').textContent = 'Preparando la cámara...';
+
+            // 1. Setup video and canvas elements
+            video = document.createElement('video');
+            video.autoplay = true;
+            video.playsInline = true; 
+            canvas = document.createElement('canvas');
+            canvasCtx = canvas.getContext('2d');
             
-            if (typeof Quagga === 'undefined') {
-                showErrorModal("El lector QR no se cargó correctamente.");
-                return;
-            }
+            interactiveViewport.innerHTML = '';
+            interactiveViewport.appendChild(video);
 
-            Quagga.init({
-                numOfWorkers: 0, // CRÍTICO: Deshabilita workers para prevenir el TypeError
-                locate: false,   // CRÍTICO: Deshabilita la localización compleja que puede fallar
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: interactiveViewport,
-                    constraints: {
-                        facingMode: "environment" // Usa la cámara trasera del móvil
-                    },
-                },
-                decoder: {
-                    readers: ["qr_code_reader"] // Solo buscamos QR
-                },
-            }, function (err) {
-                if (err) {
-                    console.error("Error al iniciar QuaggaJS:", err);
+            // 2. Request camera access
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(function(s) {
+                    stream = s;
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        document.getElementById('scan-message').textContent = 'Apunta la cámara al QR de la factura...';
+                        scanLoop();
+                    };
+                })
+                .catch(function(err) {
+                    console.error("Error al acceder a la cámara:", err);
                     stopScanner();
-                    // Si falla el acceso a la cámara, volvemos a la vista inicial con error
-                    showView('initial-view'); 
-                    showErrorModal("No se pudo acceder a la cámara. Revisa los permisos e inténtalo de nuevo.");
-                    return
-                }
-                console.log("QuaggaJS iniciado correctamente. Esperando código QR...");
-                Quagga.start();
-            });
-
-            Quagga.onDetected(function (result) {
-                if (result.codeResult.code) {
-                    stopScanner();
-                    handleCupsRead(result.codeResult.code);
-                }
-            });
+                    showView('initial-view');
+                    showErrorModal("No se pudo acceder a la cámara. Por favor, revisa los permisos.");
+                });
         }
 
         function stopScanner() {
             if (scannerRunning) {
-                Quagga.stop();
                 scannerRunning = false;
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+                if (video) {
+                    video.srcObject = null;
+                    interactiveViewport.innerHTML = '';
+                    video = null;
+                }
+                canvas = null;
+                canvasCtx = null;
             }
         }
 
         // --- LÓGICA DE CAPTURA MANUAL DE FOTO ---
         function capturePhoto() {
-            // 1. Detener el escaneo continuo para "congelar" la imagen
-            stopScanner();
-            document.getElementById('scan-message').textContent = 'Capturando y analizando la imagen...';
-
-            // 2. Localizar el elemento de video creado por QuaggaJS
-            const video = interactiveViewport.querySelector('video');
-            if (!video || video.readyState !== 4) { 
-                showErrorModal("Error: El feed de la cámara no está listo. Intente de nuevo.");
-                startScanner(); // Reiniciar el escáner
+            if (!scannerRunning || !video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+                showErrorModal("El feed de la cámara no está listo para capturar. Inicie el escaneo primero.");
                 return;
             }
 
-            // 3. Crear un canvas temporal para la instantánea
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = video.videoWidth;
-            tempCanvas.height = video.videoHeight;
-            const ctx = tempCanvas.getContext('2d');
+            document.getElementById('scan-message').textContent = 'Capturando y analizando la imagen...';
+            
+            canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-            // 4. Dibujar el frame actual del video en el canvas
-            ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-
-            // 5. Decodificar la imagen estática
-            Quagga.decodeSingle({
-                src: tempCanvas.toDataURL('image/jpeg'), // Datos de imagen del canvas
-                numOfWorkers: 0, 
-                decoder: {
-                    readers: ["qr_code_reader"]
-                }
-            }, function(result) {
-                // Restaurar mensaje después de intentar la captura
-                document.getElementById('scan-message').textContent = 'Apunta la cámara al QR de la factura'; 
-                
-                if (result && result.codeResult) {
-                    handleCupsRead(result.codeResult.code);
-                } else {
-                    // Si falla, informamos y volvemos a la vista de escáner para que pueda volver a intentar.
-                    showErrorModal("No se pudo detectar un código QR en la imagen capturada. Intente de nuevo o reajuste la imagen.");
-                    showView('scanner-view');
-                    // Reiniciar el live stream para el siguiente intento
-                    startScanner(); 
-                }
-            });
+            if (code) {
+                stopScanner();
+                handleQRRead(code.data);
+            } else {
+                showErrorModal("No se pudo detectar un código QR en la imagen capturada. Intente de nuevo o reajuste la imagen.");
+                document.getElementById('scan-message').textContent = 'Apunta la cámara al QR de la factura';
+            }
         }
         
-        // --- Lógica de Comparación de Tarifas ---
+        // --- FUNCIÓN DE ENTRADA DE DATOS (QR o Manual) ---
 
-        function handleCupsRead(rawCode) {
-            let cups = rawCode.trim().toUpperCase();
+        function handleQRRead(rawCode) {
+            let rawText = rawCode.trim();
             
+            // Si la cadena parece una URL (al escanear desde un documento PDF)
             try {
                 const url = new URL(rawCode);
-                const cupsParam = url.searchParams.get('c'); 
-                if (cupsParam) {
-                    cups = cupsParam.trim().toUpperCase();
+                // Si la URL contiene parámetros, usamos el query string como datos CNMC
+                if (url.searchParams.toString().length > 0) {
+                    rawText = url.searchParams.toString();
                 }
             } catch (e) {
-                // No es una URL válida, asumimos que el código es el CUPS o un extracto
+                // No es una URL válida, se asume que rawCode es la cadena CNMC directa
             }
 
-            if (!cups.startsWith('ES') || cups.length < 20) { 
-                console.warn(`Código obtenido no parece un CUPS: ${cups}`);
-            }
+            const parsedData = parseQR(rawText);
 
-            compareOffers(cups);
+            if (parsedData.cups.includes('NO ENCONTRADO') || parsedData.consumo_total === 0) {
+                showErrorModal(`El código QR no contiene datos válidos de CUPS o consumo. Intente de nuevo. Consumo total detectado: ${parsedData.consumo_total}`);
+                // Si falla, volvemos a la vista inicial y mostramos el error
+                showView('initial-view');
+                return;
+            }
+            
+            compareOffers(parsedData);
         }
 
-        function compareOffers(cups) {
-            document.getElementById('cups-value').textContent = cups;
+        // --- Lógica de Comparación de Tarifas ---
+        
+        // Helper para mostrar datos en la tarjeta de consumo
+        function renderConsumptionDetails(data) {
+            const detailsDiv = document.getElementById('user-consumption-details');
             
-            // --- PARÁMETROS DE SIMULACIÓN DE CONSUMO TÍPICO 2.0 TD ---
-            const annualConsumption = 3000; // kWh/año
-            const consumptionProfile = { 
-                p1: 0.40, // 40% Punta (Energía)
-                p2: 0.30, // 30% Llano (Energía)
-                p3: 0.30, // 30% Valle (Energía)
-            };
-            
-            // Potencia contratada estándar para la simulación
-            const contractedPowerP1 = 4.6; // kW (Potencia Punta/Llano)
-            const contractedPowerP2 = 4.6; // kW (Potencia Valle)
+            let html = `
+                <div class="flex justify-between font-semibold text-gray-700 pb-1 border-b border-gray-200">
+                    <span>Periodo Facturado:</span>
+                    <span>${data.dias_facturados} Días (${data.fecha_inicio} - ${data.fecha_fin})</span>
+                </div>
+                <div class="text-sm space-y-1">
+                    <div class="flex justify-between pt-2"><span>Consumo Punta (P1):</span><span class="font-medium">${data.consumo_punta.toFixed(2)} kWh</span></div>
+                    <div class="flex justify-between"><span>Consumo Llano (P2):</span><span class="font-medium">${data.consumo_llano.toFixed(2)} kWh</span></div>
+                    <div class="flex justify-between"><span>Consumo Valle (P3):</span><span class="font-medium">${data.consumo_valle.toFixed(2)} kWh</span></div>
+                    <div class="flex justify-between border-t mt-2 pt-2 font-bold text-blue-600">
+                        <span>Consumo Total:</span><span>${data.consumo_total.toFixed(2)} kWh</span>
+                    </div>
+                </div>
+                <div class="text-sm space-y-1 mt-4">
+                    <div class="flex justify-between"><span>Potencia Contratada P1 (Punta/Llano):</span><span class="font-medium">${data.potencia_p1_kw.toFixed(3)} kW</span></div>
+                    <div class="flex justify-between"><span>Potencia Contratada P2 (Valle):</span><span class="font-medium">${data.potencia_p2_kw.toFixed(3)} kW</span></div>
+                </div>
+            `;
+            detailsDiv.innerHTML = html;
+        }
 
 
-            const consumptionP1 = annualConsumption * consumptionProfile.p1;
-            const consumptionP2 = annualConsumption * consumptionProfile.p2;
-            const consumptionP3 = annualConsumption * consumptionProfile.p3;
+        function compareOffers(parsedData) {
+            // 1. Datos reales extraídos del QR
+            const diasFacturados = parsedData.dias_facturados;
+            const consumoPunta = parsedData.consumo_punta;
+            const consumoLlano = parsedData.consumo_llano;
+            const consumoValle = parsedData.consumo_valle;
+            const potenciaP1 = parsedData.potencia_p1_kw;
+            const potenciaP2 = parsedData.potencia_p2_kw;
             
+            // El coste anual se calcula escalando el consumo del periodo de la factura (diasFacturados)
+            const factorAnual = 365 / diasFacturados;
+            
+            // Coste de la factura original (basado en el campo imp del QR)
+            const currentBillCost = parsedData.raw_data.imp ? parseFloat(parsedData.raw_data.imp) : 0;
+            const simulatedCurrentCost = currentBillCost * factorAnual;
+
+            document.getElementById('cups-value').textContent = parsedData.cups;
+            renderConsumptionDetails(parsedData); // Mostrar los datos extraídos
+
             let bestOffer = null;
             let minAnnualCost = Infinity;
 
@@ -560,47 +667,51 @@
             comparisonDetails.innerHTML = ''; 
             
             currentTariffs.forEach(tariff => {
-                // Filtramos SOLO por las tarifas que cumplen con el tipo "2.0TD"
-                if (tariff.cups_match.includes("2.0TD")) {
-                    
-                    // 2. Cálculo de coste variable (energía)
-                    const costEnergy = (consumptionP1 * tariff.p1_price) + 
-                                     (consumptionP2 * tariff.p2_price) + 
-                                     (consumptionP3 * tariff.p3_price);
-                    
-                    // 3. Cálculo de coste fijo (potencia)
-                    const costFixed = (contractedPowerP1 * tariff.p_potencia_1) + 
-                                      (contractedPowerP2 * tariff.p_potencia_2);
-                    
-                    const totalAnnualCost = costEnergy + costFixed;
-                    
-                    tariff.annualCost = totalAnnualCost;
+                // 2. Cálculo de Coste Energía del periodo de la factura (kWh * Precio)
+                const costEnergyPeriod = (consumoPunta * tariff.p1_price) + 
+                                         (consumoLlano * tariff.p2_price) + 
+                                         (consumoValle * tariff.p3_price);
+                
+                // 3. Cálculo de Coste Potencia del periodo de la factura (€/kW/año * kW * Días/365)
+                // Coste Potencia P1 (Punta/Llano): (kW * PrecioP1 / 365) * Días
+                const costFixedP1Period = (potenciaP1 * tariff.p_potencia_1 / 365) * diasFacturados; 
+                // Coste Potencia P2 (Valle): (kW * PrecioP2 / 365) * Días
+                const costFixedP2Period = (potenciaP2 * tariff.p_potencia_2 / 365) * diasFacturados; 
 
-                    // 4. Determinar la mejor oferta
-                    if (totalAnnualCost < minAnnualCost) {
-                        minAnnualCost = totalAnnualCost;
-                        bestOffer = tariff;
-                    }
+                // Coste Total del Periodo de la Factura (Sin impuestos, ni alquiler, ni ajustes)
+                const totalPeriodCost = costEnergyPeriod + costFixedP1Period + costFixedP2Period;
+                
+                // 4. Cálculo de Coste Anual Proyectado (Aplicando factor de anualización)
+                const totalAnnualCost = totalPeriodCost * factorAnual;
 
-                    // 5. Renderizar el detalle
-                    const detailHtml = `
-                        <div class="p-3 border rounded-lg shadow-sm ${tariff === bestOffer ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
-                            <p class="font-bold ${tariff === bestOffer ? 'text-green-700' : 'text-gray-700'}">${tariff.name}</p>
-                            <p class="text-xs text-gray-500">
-                                ENERGÍA (P1/P3): ${tariff.p1_price.toFixed(3)} / ${tariff.p3_price.toFixed(3)} €/kWh | 
-                                POTENCIA (P1/P2): ${tariff.p_potencia_1.toFixed(2)} / ${tariff.p_potencia_2.toFixed(2)} €/kW/año
-                            </p>
-                            <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est.)</p>
-                        </div>
-                    `;
-                    comparisonDetails.innerHTML += detailHtml;
+                tariff.annualCost = totalAnnualCost;
+
+                // 5. Determinar la mejor oferta
+                if (totalAnnualCost < minAnnualCost) {
+                    minAnnualCost = totalAnnualCost;
+                    bestOffer = tariff;
                 }
+
+                // 6. Renderizar el detalle
+                const detailHtml = `
+                    <div class="p-3 border rounded-lg shadow-sm ${tariff === bestOffer ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
+                        <p class="font-bold ${tariff === bestOffer ? 'text-green-700' : 'text-gray-700'}">${tariff.name}</p>
+                        <p class="text-xs text-gray-500">
+                            Precios Energía (P1/P2/P3): ${tariff.p1_price.toFixed(3)} / ${tariff.p2_price.toFixed(3)} / ${tariff.p3_price.toFixed(3)} €/kWh
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            Precios Potencia (P1/P2): ${tariff.p_potencia_1.toFixed(2)} / ${tariff.p_potencia_2.toFixed(2)} €/kW/año
+                        </p>
+                        <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est.)</p>
+                    </div>
+                `;
+                comparisonDetails.innerHTML += detailHtml;
             });
 
             // Mostrar el resultado final
             if (bestOffer) {
-                // Simulación de un coste actual para calcular el ahorro
-                const simulatedCurrentCost = currentTariffs.length > 0 ? currentTariffs.reduce((a, b) => a + b.annualCost, 0) / currentTariffs.length * 1.1 : 0;
+                // Cálculo de ahorro: (Coste Anual Actual Simulado) - (Coste Anual de la Mejor Oferta)
+                // Usamos el importe total de la factura ANUALIZADO (simulatedCurrentCost) para el cálculo del ahorro.
                 const savings = simulatedCurrentCost - bestOffer.annualCost;
                 
                 document.getElementById('best-offer-name').textContent = bestOffer.name;
@@ -620,33 +731,29 @@
 
         function initApp() {
             setLoading(false, 'Listo para escanear');
-            updateTariffCount(); // Muestra el conteo de tarifas por defecto
+            updateTariffCount();
             
-            // 1. Carga de CSV de tarifas
             loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
             csvFileInput.addEventListener('change', loadTariffsFromFile);
             
-            // 2. Escaneo en vivo y captura manual
             startScanBtn.addEventListener('click', startScanner);
             stopScanBtn.addEventListener('click', stopScanner);
-            capturePhotoBtn.addEventListener('click', capturePhoto); // NUEVO LISTENER
+            capturePhotoBtn.addEventListener('click', capturePhoto);
 
-            // 3. Simulación manual
             simulateScanBtn.addEventListener('click', () => {
-                const cups = cupsInput.value.trim();
-                if (cups.length > 10) {
+                const rawText = cupsInput.value.trim();
+                if (rawText.length > 10) {
                     if (currentTariffs.length === 0) {
                            showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o recargue la página.");
                            return;
                     }
-                    // Simulamos que el QR o la URL escaneada contiene el CUPS
-                    handleCupsRead(`https://drk.com/cups?c=${cups}`); 
+                    handleQRRead(rawText); 
                 } else {
-                    showErrorModal("Por favor, introduce un CUPS válido para la simulación.");
+                    showErrorModal("Por favor, introduce una cadena CNMC válida o un CUPS.");
                 }
             });
             
-            console.log("Aplicación inicializada. Intentando usar la cámara en vivo para el escaneo.");
+            console.log("Aplicación inicializada. Usando jsQR para el escaneo.");
         }
         
         window.onload = initApp;
