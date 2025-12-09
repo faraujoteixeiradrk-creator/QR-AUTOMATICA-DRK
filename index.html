@@ -63,7 +63,7 @@
             <!-- Bloque de Carga de Tarifas (CSV) -->
             <div class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 rounded-lg shadow-sm" role="alert">
                 <p class="font-bold">Carga de Tarifas DRK</p>
-                <p class="text-sm">Actualmente hay <span id="tariff-count" class="font-bold">4 tarifas</span> cargadas.
+                <p class="text-sm">Actualmente hay <span id="tariff-count" class="font-bold">0 tarifas</span> cargadas.
                     Use el botón para cargar su fichero CSV actualizado.</p>
                 
                 <div class="mt-3 flex items-center space-x-2">
@@ -232,11 +232,16 @@
             console.warn("Configuración de Firebase no encontrada. El comparador seguirá funcionando con datos de simulación.");
         }
         
+        // Constantes de cálculo (movidas aquí para uso global en la carga CSV)
+        const IVA_RATE = 0.21;
+        const IE_RATE = 0.05; // Impuesto Eléctrico (5%)
+        const ANNUAL_DAYS = 365;
+
         // ==============================================================================
         //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA !!!
         // ==============================================================================
         // NOTA: Los precios de potencia aquí están en €/kW/año.
-        // Se mantiene la lista para restaurar el contador al valor inicial, pero currentTariffs se inicializa con ella
+        // Se mantiene la lista para referencia, pero currentTariffs se inicializa como vacío.
         const defaultTariffs = [
             {
                 name: "DRK Oferta Estrella (EJEMPLO - Ahorro medio)",
@@ -281,7 +286,7 @@
         ];
         // ==============================================================================
 
-        let currentTariffs = [...defaultTariffs]; // Inicialmente cargado con las tarifas de ejemplo
+        let currentTariffs = []; // FIX: Inicializado como vacío para que no haya tarifas precargadas al recargar.
         let scannerRunning = false;
         
         // Referencias a los elementos del DOM
@@ -298,7 +303,7 @@
         const cupsInput = document.getElementById('cups-input');
         const csvFileInput = document.getElementById('csv-file-input');
         const loadTariffsBtn = document.getElementById('load-tariffs-btn');
-        const resetTariffsBtn = document.getElementById('reset-tariffs-btn'); // NUEVO
+        const resetTariffsBtn = document.getElementById('reset-tariffs-btn'); 
         const tariffCountSpan = document.getElementById('tariff-count');
 
         // Variables para jsQR (cámara y procesamiento)
@@ -571,7 +576,7 @@
 
         function startScanner() {
             if (currentTariffs.length === 0) {
-                showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (restablezca la página).");
+                showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV.");
                 return;
             }
             if (scannerRunning) return;
@@ -876,6 +881,16 @@
             const comparisonDetails = document.getElementById('comparison-details');
             comparisonDetails.innerHTML = ''; 
             
+            // Comprobación esencial: si no hay tarifas, no se puede comparar
+            if (currentTariffs.length === 0) {
+                document.getElementById('best-offer-name').textContent = "ERROR: No hay tarifas cargadas.";
+                document.getElementById('best-offer-desc').textContent = "Por favor, cargue un archivo CSV con ofertas de DRK.";
+                document.getElementById('savings-estimate').textContent = `N/A`;
+                document.getElementById('cost-breakdown').innerHTML = '<p class="text-red-500 text-center">Debe cargar tarifas válidas antes de comparar.</p>';
+                showView('results-view');
+                return;
+            }
+
             currentTariffs.forEach(tariff => {
                 // Se realiza el cálculo completo de la oferta
                 const costResults = calculateOfferCost(tariff, parsedData);
