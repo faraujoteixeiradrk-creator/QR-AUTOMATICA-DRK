@@ -71,6 +71,10 @@
                     <button id="load-tariffs-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold text-sm py-2 px-4 rounded-md transition duration-300">
                         Cargar Tarifas (CSV)
                     </button>
+                    <!-- NUEVO BOTÓN PARA RESTABLECER TARIFAS -->
+                    <button id="reset-tariffs-btn" class="bg-gray-400 hover:bg-gray-500 text-white font-semibold text-sm py-2 px-4 rounded-md transition duration-300">
+                        Restablecer Tarifas
+                    </button>
                     <button onclick="document.getElementById('tariff-guide-modal').classList.remove('hidden');" class="text-yellow-600 text-sm hover:text-yellow-800 font-semibold underline">
                         ¿Formato CSV?
                     </button>
@@ -232,6 +236,7 @@
         //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA !!!
         // ==============================================================================
         // NOTA: Los precios de potencia aquí están en €/kW/año.
+        // Se mantiene la lista para restaurar el contador al valor inicial, pero currentTariffs se inicializa con ella
         const defaultTariffs = [
             {
                 name: "DRK Oferta Estrella (EJEMPLO - Ahorro medio)",
@@ -276,7 +281,7 @@
         ];
         // ==============================================================================
 
-        let currentTariffs = [...defaultTariffs];
+        let currentTariffs = [...defaultTariffs]; // Inicialmente cargado con las tarifas de ejemplo
         let scannerRunning = false;
         
         // Referencias a los elementos del DOM
@@ -293,6 +298,7 @@
         const cupsInput = document.getElementById('cups-input');
         const csvFileInput = document.getElementById('csv-file-input');
         const loadTariffsBtn = document.getElementById('load-tariffs-btn');
+        const resetTariffsBtn = document.getElementById('reset-tariffs-btn'); // NUEVO
         const tariffCountSpan = document.getElementById('tariff-count');
 
         // Variables para jsQR (cámara y procesamiento)
@@ -307,6 +313,14 @@
         
         function updateTariffCount() {
             tariffCountSpan.textContent = `${currentTariffs.length} tarifas`;
+        }
+
+        // FUNCIÓN PARA RESTABLECER LAS TARIFAS (VACIAR MEMORIA)
+        function resetTariffs() {
+            currentTariffs = []; // Vacía la memoria por completo
+            updateTariffCount();
+            showErrorModal("¡Memoria de tarifas vaciada! Ahora debe cargar un nuevo archivo CSV para comparar.");
+            console.log("Tarifas restablecidas. Lista vacía.");
         }
         
         function showView(viewId) {
@@ -557,7 +571,7 @@
 
         function startScanner() {
             if (currentTariffs.length === 0) {
-                showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (recargue la página).");
+                showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (restablezca la página).");
                 return;
             }
             if (scannerRunning) return;
@@ -922,6 +936,7 @@
             
             loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
             csvFileInput.addEventListener('change', loadTariffsFromFile);
+            resetTariffsBtn.addEventListener('click', resetTariffs); // NUEVO LISTENER
             
             startScanBtn.addEventListener('click', startScanner);
             stopScanBtn.addEventListener('click', stopScanner);
@@ -931,7 +946,7 @@
                 const rawText = cupsInput.value.trim();
                 if (rawText.length > 10) {
                     if (currentTariffs.length === 0) {
-                           showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o recargue la página.");
+                           showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV.");
                            return;
                     }
                     handleQRRead(rawText); 
