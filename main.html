@@ -1,0 +1,550 @@
+
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Tarifas DRK - Escaneo QR</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuración de fuente y estilos base */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        /* Estilos específicos para la cámara/lector QR */
+        #interactive.viewport {
+            width: 100%;
+            height: auto;
+            max-width: 400px;
+            margin: 0 auto;
+            position: relative;
+        }
+        #interactive.viewport > canvas, #interactive.viewport > video {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .loading-ring {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <!-- QuaggaJS CDN para escaneo QR -->
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+</head>
+<body class="p-4 flex flex-col min-h-screen">
+
+    <div id="app" class="w-full max-w-lg mx-auto bg-white p-6 md:p-8 rounded-xl shadow-2xl">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold text-blue-600">DRK Comparador Inteligente</h1>
+            <p class="text-gray-500 mt-1 text-sm">Escanea tu QR y encuentra la mejor oferta 2.0 TD.</p>
+        </header>
+
+        <!-- Sección de Instrucciones y Botón de Inicio -->
+        <div id="initial-view">
+            
+            <!-- Bloque de Carga de Tarifas -->
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 rounded-lg shadow-sm" role="alert">
+                <p class="font-bold">Carga de Tarifas DRK</p>
+                <p class="text-sm">Actualmente hay <span id="tariff-count" class="font-bold">4 tarifas</span> cargadas.
+                   Use el botón para cargar su fichero CSV actualizado.</p>
+                
+                <div class="mt-3 flex items-center space-x-2">
+                    <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+                    <button id="load-tariffs-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold text-sm py-2 px-4 rounded-md transition duration-300">
+                        Cargar Tarifas (CSV)
+                    </button>
+                    <button onclick="document.getElementById('tariff-guide-modal').classList.remove('hidden');" class="text-yellow-600 text-sm hover:text-yellow-800 font-semibold underline">
+                        ¿Formato CSV?
+                    </button>
+                </div>
+            </div>
+            
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Paso 1: Escanea tu CUPS</h2>
+            <div class="space-y-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p class="flex items-center text-sm text-blue-800">
+                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 000 2h2a1 1 0 100-2h-2zm-2 4a1 1 0 001 1h4a1 1 0 100-2h-4a1 1 0 00-1 1z" clip-rule="evenodd"></path></svg>
+                    Asegúrate de tener tu factura de luz a mano.
+                </p>
+                <p class="flex items-center text-sm text-blue-800">
+                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 100 2h2a1 1 0 100-2h-2zM4 3a1 1 0 100 2h2a1 1 0 100-2H4zM11 15a1 1 0 100 2h2a1 1 0 100-2h-2zM4 15a1 1 0 100 2h2a1 1 0 100-2H4z" /></svg>
+                    El código QR suele estar en la parte superior o lateral.
+                </p>
+            </div>
+            <button id="start-scan-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 flex items-center justify-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Iniciar Escaneo de QR
+            </button>
+            <p id="loading-status" class="text-center text-sm text-gray-500 mt-4 hidden">Cargando tarifas y preparando la cámara...</p>
+            
+            <!-- Simulador para pruebas -->
+            <div id="simulation-input" class="mt-4 p-4 bg-gray-100 rounded-lg hidden">
+                <p class="text-sm font-medium text-gray-600 mb-2">Simulación: Ingrese CUPS manualmente si el escaneo falla (Ej: ES0031100000000000AA0F)</p>
+                <input type="text" id="cups-input" placeholder="CUPS (ES...)" value="ES0031100000000000AA0F" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                <button id="simulate-scan-btn" class="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition duration-300">
+                    Simular Escaneo y Comparar
+                </button>
+            </div>
+        </div>
+
+        <!-- Vista de la Cámara/Escaneo -->
+        <div id="scanner-view" class="hidden">
+            <p class="text-lg font-semibold text-center mb-3 text-gray-700">Apunta la cámara al QR de la factura</p>
+            <div id="interactive" class="viewport shadow-lg rounded-lg overflow-hidden border-4 border-dashed border-blue-300"></div>
+            <p id="scan-message" class="text-center text-sm mt-3 text-red-500">
+                Asegúrate de otorgar permisos de cámara. Si el QR no se lee, usa el botón de "Simular" de abajo.
+            </p>
+            <button id="stop-scan-btn" class="w-full mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300">
+                Detener Escaneo
+            </button>
+        </div>
+
+        <!-- Sección de Resultados de Comparación -->
+        <div id="results-view" class="hidden">
+            <h2 class="text-2xl font-bold text-center mb-4 text-green-600">¡Comparación Exitosa!</h2>
+            <div id="cups-display" class="bg-gray-100 p-3 rounded-lg mb-4 text-center">
+                <p class="text-sm font-medium text-gray-600">CUPS Analizado:</p>
+                <p id="cups-value" class="font-mono text-lg text-gray-800 truncate"></p>
+            </div>
+            
+            <h3 class="text-xl font-semibold text-gray-700 mb-3">La Mejor Oferta para ti es:</h3>
+            <div id="best-offer-card" class="p-5 bg-yellow-100 border-2 border-yellow-500 rounded-xl shadow-lg mb-6">
+                <p id="best-offer-name" class="text-2xl font-bold text-yellow-800"></p>
+                <p id="best-offer-desc" class="text-gray-700 mt-1"></p>
+                <p class="mt-3 text-sm font-semibold text-gray-800">Ahorro Anual Estimado (Simulado):</p>
+                <p id="savings-estimate" class="text-3xl font-extrabold text-green-700 mt-1"></p>
+            </div>
+            
+            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-2">Detalle de Comparativa (Simulación)</h3>
+            <div id="comparison-details" class="space-y-4">
+                <!-- Se llenará con la comparación de tarifas -->
+            </div>
+
+            <button onclick="resetApp()" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md transition duration-300">
+                Hacer Otra Comparación
+            </button>
+        </div>
+        
+        <!-- Modal de Error -->
+        <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                <h3 class="text-xl font-bold text-red-600 mb-3">Error</h3>
+                <p id="error-message" class="text-gray-700 mb-4"></p>
+                <button onclick="hideErrorModal()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg">Aceptar</button>
+            </div>
+        </div>
+
+        <!-- Modal de Guía de CSV -->
+        <div id="tariff-guide-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full">
+                <h3 class="text-xl font-bold text-blue-600 mb-3">Formato de Archivo CSV Requerido</h3>
+                <p class="text-gray-700 mb-4 text-sm">Para que la carga funcione, su archivo CSV (exportado desde Excel) debe tener exactamente las siguientes **6 cabeceras** en la primera fila:</p>
+                
+                <div class="bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm font-mono mb-4">
+                    <span class="font-bold text-gray-800">name, description, p1_price, p2_price, p3_price, fixed_fee</span>
+                </div>
+
+                <p class="text-sm text-gray-700 mb-3">**Explicación de las columnas:**</p>
+                <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                    <li>`name`: Nombre de la oferta (texto).</li>
+                    <li>`description`: Breve descripción de la oferta (texto).</li>
+                    <li>`p1_price`: Precio de la energía en periodo Punta (€/kWh). **(Número)**</li>
+                    <li>`p2_price`: Precio de la energía en periodo Llano (€/kWh). **(Número)**</li>
+                    <li>`p3_price`: Precio de la energía en periodo Valle (€/kWh). **(Número)**</li>
+                    <li>`fixed_fee`: Cuota fija de Potencia/mes (€/mes). **(Número)**</li>
+                </ul>
+
+                <p class="text-sm text-red-500 mt-4">Asegúrese de que los precios usen el **punto** como separador decimal (ej: `0.125`).</p>
+
+                <button onclick="document.getElementById('tariff-guide-modal').classList.add('hidden');" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg">Cerrar</button>
+            </div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // ==============================================================================
+        //  !!! ZONA DE TARIFAS DE EJEMPLO / DE RESERVA !!!
+        //  Estas tarifas se usan si no se carga un archivo CSV.
+        // ==============================================================================
+        const defaultTariffs = [
+            {
+                name: "DRK Oferta Estrella (EJEMPLO)",
+                description: "La mejor para clientes con consumo diurno.",
+                p1_price: 0.15,
+                p2_price: 0.10,
+                p3_price: 0.05,
+                fixed_fee: 40.0,
+                cups_match: ["2.0TD"],
+            },
+            {
+                name: "DRK Ahorro Nocturno (EJEMPLO)",
+                description: "Ideal para cargar vehículos eléctricos o consumo nocturno.",
+                p1_price: 0.20,
+                p2_price: 0.12,
+                p3_price: 0.02,
+                fixed_fee: 45.0,
+                cups_match: ["2.0TD"],
+            },
+            {
+                name: "DRK Precio Fijo Garantizado (EJEMPLO)",
+                description: "Estabilidad 24h al mejor precio.",
+                p1_price: 0.12,
+                p2_price: 0.12,
+                p3_price: 0.12,
+                fixed_fee: 35.0,
+                cups_match: ["2.0TD"],
+            },
+            {
+                name: "DRK Tarifa Súper Valle (EJEMPLO)",
+                description: "Precios muy bajos en el periodo valle.",
+                p1_price: 0.18,
+                p2_price: 0.14,
+                p3_price: 0.01,
+                fixed_fee: 42.0,
+                cups_match: ["2.0TD"],
+            },
+        ];
+        // ==============================================================================
+
+        let currentTariffs = [...defaultTariffs]; // Usamos las de ejemplo al inicio
+        let scannerRunning = false;
+        
+        // Referencias a los elementos del DOM
+        const initialView = document.getElementById('initial-view');
+        const scannerView = document.getElementById('scanner-view');
+        const resultsView = document.getElementById('results-view');
+        const interactiveViewport = document.getElementById('interactive');
+        const startScanBtn = document.getElementById('start-scan-btn');
+        const stopScanBtn = document.getElementById('stop-scan-btn');
+        const loadingStatus = document.getElementById('loading-status');
+        const simulationInput = document.getElementById('simulation-input');
+        const simulateScanBtn = document.getElementById('simulate-scan-btn');
+        const cupsInput = document.getElementById('cups-input');
+        const csvFileInput = document.getElementById('csv-file-input');
+        const loadTariffsBtn = document.getElementById('load-tariffs-btn');
+        const tariffCountSpan = document.getElementById('tariff-count');
+
+
+        // --- Funciones de Utilidad y UI ---
+        
+        function updateTariffCount() {
+            tariffCountSpan.textContent = `${currentTariffs.length} tarifas`;
+        }
+        
+        function showView(viewId) {
+            initialView.classList.add('hidden');
+            scannerView.classList.add('hidden');
+            resultsView.classList.add('hidden');
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        function showErrorModal(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-modal').classList.remove('hidden');
+            document.getElementById('error-modal').classList.add('flex');
+        }
+
+        window.hideErrorModal = () => {
+            document.getElementById('error-modal').classList.add('hidden');
+            document.getElementById('error-modal').classList.remove('flex');
+        }
+
+        function setLoading(isLoading, message = 'Cargando...') {
+            loadingStatus.textContent = message;
+            if (isLoading) {
+                startScanBtn.disabled = true;
+                startScanBtn.innerHTML = `<div class="loading-ring mr-2"></div> ${message}`;
+                loadingStatus.classList.remove('hidden');
+                simulationInput.classList.add('hidden');
+            } else {
+                startScanBtn.disabled = false;
+                startScanBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.125 3h3.75a2 2 0 011.664.89l.812 1.22a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Iniciar Escaneo de QR`;
+                loadingStatus.classList.add('hidden');
+                // Mostrar simulación si no estamos cargando
+                simulationInput.classList.remove('hidden'); 
+            }
+        }
+        
+        window.resetApp = () => {
+            stopScanner();
+            showView('initial-view');
+            setLoading(false, 'Listo para escanear');
+        };
+
+        // --- Lógica de Carga de Archivo CSV ---
+
+        function parseCSV(text) {
+            // Divide el texto en líneas y luego en columnas
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) return []; // Necesita cabecera y al menos una fila de datos
+
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const requiredHeaders = ['name', 'description', 'p1_price', 'p2_price', 'p3_price', 'fixed_fee'];
+            
+            // Validación básica de cabeceras
+            if (!requiredHeaders.every(h => headers.includes(h))) {
+                throw new Error("El archivo CSV no tiene las cabeceras requeridas. Revise el formato: name, description, p1_price, p2_price, p3_price, fixed_fee.");
+            }
+
+            const newTariffs = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                if (values.length !== headers.length) continue; // Ignorar líneas mal formadas
+
+                const tariff = { cups_match: ["2.0TD"] };
+                
+                // Mapear valores a la estructura de tarifa
+                for (let j = 0; j < headers.length; j++) {
+                    const header = headers[j];
+                    const value = values[j].trim();
+                    
+                    if (header.includes('price') || header.includes('fixed_fee')) {
+                        // Intentar convertir a número (usando punto decimal)
+                        const numValue = parseFloat(value.replace(',', '.'));
+                        if (isNaN(numValue)) {
+                            console.warn(`Valor no numérico en columna ${header} en la línea ${i + 1}. Fila ignorada.`);
+                            continue; // Ignorar esta fila si el precio es inválido
+                        }
+                        tariff[header] = numValue;
+                    } else {
+                        tariff[header] = value;
+                    }
+                }
+                
+                // Solo añadir si tiene los datos de precio válidos
+                if (tariff.p1_price !== undefined) {
+                    newTariffs.push(tariff);
+                }
+            }
+
+            return newTariffs;
+        }
+
+        function loadTariffsFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loadedTariffs = parseCSV(e.target.result);
+                    if (loadedTariffs.length === 0) {
+                         showErrorModal("No se pudieron cargar tarifas válidas del archivo CSV. Revise el formato y las cabeceras.");
+                         return;
+                    }
+                    
+                    currentTariffs = loadedTariffs;
+                    updateTariffCount();
+                    showErrorModal(`¡Carga Exitosa! Se han cargado ${currentTariffs.length} tarifas nuevas.`);
+                    console.log("Tarifas cargadas desde CSV:", currentTariffs);
+
+                } catch (error) {
+                    showErrorModal(`Error al procesar el archivo: ${error.message}`);
+                    console.error("Error al procesar CSV:", error);
+                }
+            };
+            reader.readAsText(file);
+            csvFileInput.value = ''; // Resetear el input para permitir cargar el mismo archivo dos veces
+        }
+
+        // --- Inicialización de la App ---
+
+        function initApp() {
+            setLoading(false, 'Listo para escanear');
+            updateTariffCount(); // Muestra el conteo de tarifas por defecto
+            
+            // Asignar el evento al botón y al input de archivo
+            loadTariffsBtn.addEventListener('click', () => csvFileInput.click());
+            csvFileInput.addEventListener('change', loadTariffsFromFile);
+            
+            console.log("Tarifas de ejemplo cargadas. Use el botón 'Cargar Tarifas (CSV)' para actualizarlas.");
+        }
+
+        // --- Lógica de Escaneo QR (QuaggaJS) ---
+
+        function startScanner() {
+            if (scannerRunning) return;
+
+            // Antes de escanear, validar que hay tarifas para comparar
+            if (currentTariffs.length === 0) {
+                 showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o use las tarifas de ejemplo (recargue la página).");
+                 return;
+            }
+
+            showView('scanner-view');
+            scannerRunning = true;
+            
+            if (typeof Quagga === 'undefined') {
+                showErrorModal("El lector QR no se cargó correctamente. Por favor, intenta de nuevo.");
+                return;
+            }
+
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: interactiveViewport,
+                    constraints: {
+                        facingMode: "environment" // Usa la cámara trasera del móvil
+                    },
+                },
+                decoder: {
+                    readers: ["qr_code_reader"] // Solo buscamos QR
+                },
+            }, function (err) {
+                if (err) {
+                    console.error("Error al iniciar QuaggaJS:", err);
+                    stopScanner();
+                    showView('initial-view');
+                    showErrorModal("No se pudo acceder a la cámara. Por favor, ingresa el CUPS manualmente o revisa los permisos.");
+                    return
+                }
+                console.log("QuaggaJS iniciado correctamente. Esperando código QR...");
+                Quagga.start();
+            });
+
+            Quagga.onDetected(function (result) {
+                if (result.codeResult.code) {
+                    stopScanner();
+                    handleCupsRead(result.codeResult.code);
+                }
+            });
+        }
+
+        function stopScanner() {
+            if (scannerRunning) {
+                Quagga.stop();
+                scannerRunning = false;
+            }
+        }
+        
+        // --- Lógica de Comparación de Tarifas ---
+
+        function handleCupsRead(rawCode) {
+            let cups = rawCode.trim().toUpperCase();
+            
+            try {
+                const url = new URL(rawCode);
+                const cupsParam = url.searchParams.get('c'); 
+                if (cupsParam) {
+                    cups = cupsParam.trim().toUpperCase();
+                }
+            } catch (e) {
+                // No es una URL válida, asumimos que el código es el CUPS o un extracto
+            }
+
+            if (!cups.startsWith('ES') || cups.length < 20) { 
+                console.warn(`Código obtenido no parece un CUPS: ${cups}`);
+            }
+
+            compareOffers(cups);
+        }
+
+        function compareOffers(cups) {
+            document.getElementById('cups-value').textContent = cups;
+            
+            // --- PARÁMETROS DE SIMULACIÓN DE CONSUMO TÍPICO 2.0 TD ---
+            // Estos son solo para demostrar la lógica de comparación.
+            const annualConsumption = 3000; // kWh/año
+            const consumptionProfile = { 
+                p1: 0.40, // 40% Punta
+                p2: 0.30, // 30% Llano
+                p3: 0.30, // 30% Valle
+            };
+
+            const consumptionP1 = annualConsumption * consumptionProfile.p1;
+            const consumptionP2 = annualConsumption * consumptionProfile.p2;
+            const consumptionP3 = annualConsumption * consumptionProfile.p3;
+            
+            let bestOffer = null;
+            let minAnnualCost = Infinity;
+
+            const comparisonDetails = document.getElementById('comparison-details');
+            comparisonDetails.innerHTML = ''; 
+            
+            currentTariffs.forEach(tariff => {
+                // 1. Validar que la tarifa es para el segmento 2.0 TD
+                if (tariff.cups_match.includes("2.0TD")) {
+                    
+                    // 2. Cálculo de coste variable (energía)
+                    const costEnergy = (consumptionP1 * tariff.p1_price) + 
+                                       (consumptionP2 * tariff.p2_price) + 
+                                       (consumptionP3 * tariff.p3_price);
+                    
+                    // 3. Cálculo de coste fijo (potencia + cuotas)
+                    const costFixed = tariff.fixed_fee * 12; // Cuota fija anual
+                    
+                    const totalAnnualCost = costEnergy + costFixed;
+                    
+                    tariff.annualCost = totalAnnualCost;
+
+                    // 4. Determinar la mejor oferta
+                    if (totalAnnualCost < minAnnualCost) {
+                        minAnnualCost = totalAnnualCost;
+                        bestOffer = tariff;
+                    }
+
+                    // 5. Renderizar el detalle
+                    const detailHtml = `
+                        <div class="p-3 border rounded-lg shadow-sm ${tariff === bestOffer ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-200'}">
+                            <p class="font-bold ${tariff === bestOffer ? 'text-green-700' : 'text-gray-700'}">${tariff.name}</p>
+                            <p class="text-xs text-gray-500">P1: ${tariff.p1_price.toFixed(3)} €/kWh | P3: ${tariff.p3_price.toFixed(3)} €/kWh | Cuota Fija: ${tariff.fixed_fee.toFixed(2)} €/mes</p>
+                            <p class="mt-2 text-lg font-extrabold text-blue-600">${totalAnnualCost.toFixed(2)} € / Año (Est.)</p>
+                        </div>
+                    `;
+                    comparisonDetails.innerHTML += detailHtml;
+                }
+            });
+
+            // Mostrar el resultado final
+            if (bestOffer) {
+                // Simulación de un coste actual para calcular el ahorro
+                const simulatedCurrentCost = currentTariffs.length > 0 ? currentTariffs.reduce((a, b) => a + b.annualCost, 0) / currentTariffs.length * 1.1 : 0;
+                const savings = simulatedCurrentCost - bestOffer.annualCost;
+                
+                document.getElementById('best-offer-name').textContent = bestOffer.name;
+                document.getElementById('best-offer-desc').textContent = bestOffer.description;
+                document.getElementById('savings-estimate').textContent = `${savings.toFixed(2)} €`;
+
+            } else {
+                 document.getElementById('best-offer-name').textContent = "No se encontró una oferta compatible.";
+                 document.getElementById('best-offer-desc').textContent = "Contacta con un asesor para un estudio personalizado.";
+                 document.getElementById('savings-estimate').textContent = `0.00 €`;
+            }
+
+            showView('results-view');
+        }
+
+        // --- Event Listeners ---
+        startScanBtn.addEventListener('click', startScanner);
+        stopScanBtn.addEventListener('click', stopScanner);
+
+        simulateScanBtn.addEventListener('click', () => {
+            const cups = cupsInput.value.trim();
+            if (cups.length > 10) {
+                if (currentTariffs.length === 0) {
+                     showErrorModal("No hay tarifas cargadas para comparar. Por favor, cargue un archivo CSV o recargue la página.");
+                     return;
+                }
+                handleCupsRead(`https://drk.com/cups?c=${cups}`); 
+            } else {
+                showErrorModal("Por favor, introduce un CUPS válido para la simulación.");
+            }
+        });
+        
+        // --- Inicialización ---
+        window.onload = initApp;
+    </script>
+</body>
+</html>
